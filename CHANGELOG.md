@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] &mdash; 2026-08-18
+
 ### Added
 
 - PlatformIO development platform for Arduino's Q series, with board support for
@@ -44,3 +46,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `linux_aarch64` hosts from a single set of pinned versions.
 
 [Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq
+[1.0.0-rc.1]: https://github.com/lee-lab-skku/platform-arduinoq/tree/v1.0.0-rc.1

@@ -1,4 +1,4 @@
-# platform-arduinoq
+# Arduino Q: development platform
 
 A PlatformIO development platform for Arduino's **Q series** — boards that pair
 a Linux application processor (the *MPU*) with a Zephyr-based microcontroller

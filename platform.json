@@ -6,10 +6,10 @@
     "platformio": "^6.1.0"
   },
   "repository": {
-    "type": "git+ssh",
-    "url": "git@github.com:lee-lab-skku/platform-arduinoq.git"
+    "type": "git",
+    "url": "https://github.com/lee-lab-skku/platform-arduinoq.git"
   },
-  "version": "0.7.3",
+  "version": "1.0.0-rc.1",
   "frameworks": {
     "arduino": {
       "package": "framework-arduino-zephyr",
