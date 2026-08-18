@@ -1,0 +1,44 @@
+{
+  "build": {
+    "machine_flags": [
+      "-mcpu=cortex-m33",
+      "-mthumb",
+      "-mabi=aapcs",
+      "-mfpu=fpv5-sp-d16",
+      "-mfloat-abi=hard",
+      "-mfp16-format=ieee",
+      "-mtp=soft",
+      "-ftls-model=local-exec",
+      "-mlong-calls"
+    ],
+    "variant": "arduino_uno_q_stm32u585xx",
+    "arduino": {
+      "board": "UNO_Q"
+    }
+  },
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "arduinoq"
+  ],
+  "debug": {
+    "tools": {
+      "openocd": {
+        "default": true,
+        "onboard": true,
+        "server": {
+          "ready_pattern": "Listening on port \\d+ for gdb connections"
+        }
+      }
+    }
+  },
+  "name": "Arduino Uno Q",
+  "upload": {
+    "protocol": "linuxgpiod",
+    "maximum_ram_size": 262144,
+    "maximum_size": 786432
+  },
+  "url": "https://www.arduino.cc",
+  "vendor": "Arduino"
+}

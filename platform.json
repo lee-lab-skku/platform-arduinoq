@@ -1,0 +1,50 @@
+{
+  "name": "arduinoq",
+  "title": "Arduino Q",
+  "description": "Arduino Q workflow for PlatformIO",
+  "engines": {
+    "platformio": "^6.1.0"
+  },
+  "repository": {
+    "type": "git+ssh",
+    "url": "git@github.com:lee-lab-skku/platform-arduinoq.git"
+  },
+  "version": "0.7.3",
+  "frameworks": {
+    "arduino": {
+      "package": "framework-arduino-zephyr",
+      "script": "builder/frameworks/arduino-zephyr.py",
+      "title": "Arduino fork of Zephyr"
+    }
+  },
+  "authors": [
+    {
+      "name": "Taeha Shin",
+      "email": "mirinae3145@skku.edu",
+      "maintainer": true
+    }
+  ],
+  "license": "Apache-2.0",
+  "packages": {
+    "toolchain-gccarmzephyreabi": {
+      "type": "toolchain",
+      "version": "https://github.com/lee-lab-skku/sdk-ng/releases/download/v0.16.8/toolchain-gccarmzephyreabi-linux_x86_64-0.16.8-leelabskku.tar.gz"
+    },
+    "framework-arduino-zephyr": {
+      "type": "framework",
+      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/0.56.0/framework-arduino-zephyr-0.56.0-leelabskku+unoq.tar.gz"
+    },
+    "tool-zephyrsketch": {
+      "type": "tool",
+      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fzephyr-sketch-tool%2F0.4.0/tool-zephyrsketch-linux_x86_64-0.4.0-leelabskku.tar.gz"
+    },
+    "tool-genrodatald": {
+      "type": "tool",
+      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fgen-rodata-ld%2F0.1.1/tool-genrodatald-linux_x86_64-0.1.1-leelabskku.tar.gz"
+    },
+    "tool-zephyrchecksize": {
+      "type": "tool",
+      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fzephyr-check-size%2F0.1.0/tool-zephyrchecksize-linux_x86_64-0.1.0-leelabskku.tar.gz"
+    }
+  }
+}
