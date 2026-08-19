@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] &mdash; 2026-08-19
+
 ### Changed
 
 - Package declarations now keep in `platform.json` their semantic versions only,
@@ -50,5 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tool-genrodatald`, `tool-zephyrchecksize`), resolved for `linux_x86_64` and
   `linux_aarch64` hosts from a single set of pinned versions.
 
-[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq
+[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/lee-lab-skku/platform-arduinoq/tree/v1.0.0-rc.1
