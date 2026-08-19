@@ -16,6 +16,34 @@ HOST_MODULE_DIR = "host"
 LAYOUT_MODULE = ("builder", "arduinoq_common", "arduino_zephyr_layout.py")
 LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 
+# Each package owns its repository and release-tag convention. Asset names do
+# follow one pattern and are assembled by the hook from the package name and
+# the complete version in platform.json, including prerelease/build metadata.
+PACKAGE_URL_BASES = {
+    "toolchain-gccarmzephyreabi": (
+        "https://github.com/lee-lab-skku/sdk-ng/releases/download/v{release}/"
+    ),
+    "framework-arduino-zephyr": (
+        "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
+        "{release}/"
+    ),
+    "tool-zephyrsketch": (
+        "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
+        "tools%2Fzephyr-sketch-tool%2F{release}/"
+    ),
+    "tool-genrodatald": (
+        "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
+        "tools%2Fgen-rodata-ld%2F{release}/"
+    ),
+    "tool-zephyrchecksize": (
+        "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
+        "tools%2Fzephyr-check-size%2F{release}/"
+    ),
+}
+HOST_SPECIFIC_PACKAGES = frozenset(PACKAGE_URL_BASES) - {
+    "framework-arduino-zephyr"
+}
+
 # Helper modules already loaded, keyed by absolute path. Module level rather
 # than per instance: the modules hold no state, loading one twice is pure
 # waste, and PlatformBase offers no __init__ hook to hang a cache on.
@@ -58,11 +86,13 @@ class ArduinoqPlatform(PlatformBase):
         return True
 
     def configure_default_packages(self, variables, targets):
-        """Host systype is used in every package asset name as a token.
-        platform.json pins the default assets; every other supported host is the
-        same URL with this token swapped, so package versions live in exactly one place.
+        """Resolve the pinned package versions to host-specific release assets.
+
+        platform.json remains the source of truth for versions but contains
+        only their nominal strings, keeping the manifest valid under
+        PlatformIO's version-field length limit. URL and asset conventions are
+        expanded here after the manifest has been loaded.
         """
-        DEFAULT_SYSTYPE = "linux_x86_64"
         SUPPORTED_SYSTYPES = ("linux_x86_64", "linux_aarch64")
 
         systype = get_systype()
@@ -80,10 +110,40 @@ class ArduinoqPlatform(PlatformBase):
                 )
             )
 
-        if systype != DEFAULT_SYSTYPE:
-            for opts in self.packages.values():
-                if DEFAULT_SYSTYPE in opts.get("version", ""):
-                    opts["version"] = opts["version"].replace(DEFAULT_SYSTYPE, systype)
+        # Keep an immutable copy because PlatformBase exposes the manifest's
+        # package dictionaries directly and this hook replaces their version
+        # values in place. The copy also makes repeated configuration calls
+        # safe.
+        if not hasattr(self, "_manifest_package_versions"):
+            self._manifest_package_versions = {
+                name: self.manifest["packages"][name]["version"]
+                for name in PACKAGE_URL_BASES
+            }
+
+        # PlatformIO applies platform_packages overrides through the same
+        # dictionaries. Those are explicit user choices and must not be
+        # interpreted as nominal versions from this platform's manifest.
+        custom_package_names = set()
+        for item in self._custom_packages or []:
+            name = item.split("@", 1)[0]
+            custom_package_names.add(self.pm.ensure_spec(name).name)
+
+        packages = self.packages
+        for name, urlbase in PACKAGE_URL_BASES.items():
+            if name in custom_package_names:
+                continue
+            version = self._manifest_package_versions[name]
+            release = re.split(r"[-+]", version, maxsplit=1)[0]
+            asset_name = (
+                "%s-%s" % (name, systype)
+                if name in HOST_SPECIFIC_PACKAGES
+                else name
+            )
+            packages[name]["version"] = "%s%s-%s.tar.gz" % (
+                urlbase.format(release=release),
+                asset_name,
+                version,
+            )
 
         return super().configure_default_packages(variables, targets)
 
