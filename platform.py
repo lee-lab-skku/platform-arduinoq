@@ -16,34 +16,32 @@ HOST_MODULE_DIR = "host"
 LAYOUT_MODULE = ("builder", "arduinoq_common", "arduino_zephyr_layout.py")
 LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 
-# The manifest carries only nominal package versions so it stays within
-# PlatformIO's 100-character limit for the version field. Release locations
-# and asset naming conventions belong to the platform hook; {version} always
-# comes from platform.json, while {systype} is selected for the current host.
-PACKAGE_URL_TEMPLATES = {
+# Each package owns its repository and release-tag convention. Asset names do
+# follow one pattern and are assembled by the hook from the package name and
+# the complete version in platform.json, including prerelease/build metadata.
+PACKAGE_URL_BASES = {
     "toolchain-gccarmzephyreabi": (
-        "https://github.com/lee-lab-skku/sdk-ng/releases/download/v{version}/"
-        "toolchain-gccarmzephyreabi-{systype}-{version}-leelabskku.tar.gz"
+        "https://github.com/lee-lab-skku/sdk-ng/releases/download/v{release}/"
     ),
     "framework-arduino-zephyr": (
         "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
-        "{version}/framework-arduino-zephyr-{version}-leelabskku+unoq.tar.gz"
+        "{release}/"
     ),
     "tool-zephyrsketch": (
         "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
-        "tools%2Fzephyr-sketch-tool%2F{version}/tool-zephyrsketch-{systype}-"
-        "{version}-leelabskku.tar.gz"
+        "tools%2Fzephyr-sketch-tool%2F{release}/"
     ),
     "tool-genrodatald": (
         "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
-        "tools%2Fgen-rodata-ld%2F{version}/tool-genrodatald-{systype}-{version}-"
-        "leelabskku.tar.gz"
+        "tools%2Fgen-rodata-ld%2F{release}/"
     ),
     "tool-zephyrchecksize": (
         "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/"
-        "tools%2Fzephyr-check-size%2F{version}/tool-zephyrchecksize-{systype}-"
-        "{version}-leelabskku.tar.gz"
+        "tools%2Fzephyr-check-size%2F{release}/"
     ),
+}
+HOST_SPECIFIC_PACKAGES = frozenset(PACKAGE_URL_BASES) - {
+    "framework-arduino-zephyr"
 }
 
 # Helper modules already loaded, keyed by absolute path. Module level rather
@@ -119,7 +117,7 @@ class ArduinoqPlatform(PlatformBase):
         if not hasattr(self, "_manifest_package_versions"):
             self._manifest_package_versions = {
                 name: self.manifest["packages"][name]["version"]
-                for name in PACKAGE_URL_TEMPLATES
+                for name in PACKAGE_URL_BASES
             }
 
         # PlatformIO applies platform_packages overrides through the same
@@ -131,11 +129,20 @@ class ArduinoqPlatform(PlatformBase):
             custom_package_names.add(self.pm.ensure_spec(name).name)
 
         packages = self.packages
-        for name, template in PACKAGE_URL_TEMPLATES.items():
+        for name, urlbase in PACKAGE_URL_BASES.items():
             if name in custom_package_names:
                 continue
-            packages[name]["version"] = template.format(
-                version=self._manifest_package_versions[name], systype=systype
+            version = self._manifest_package_versions[name]
+            release = re.split(r"[-+]", version, maxsplit=1)[0]
+            asset_name = (
+                "%s-%s" % (name, systype)
+                if name in HOST_SPECIFIC_PACKAGES
+                else name
+            )
+            packages[name]["version"] = "%s%s-%s.tar.gz" % (
+                urlbase.format(release=release),
+                asset_name,
+                version,
             )
 
         return super().configure_default_packages(variables, targets)
