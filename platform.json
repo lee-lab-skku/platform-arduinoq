@@ -28,23 +28,23 @@
   "packages": {
     "toolchain-gccarmzephyreabi": {
       "type": "toolchain",
-      "version": "https://github.com/lee-lab-skku/sdk-ng/releases/download/v0.16.8/toolchain-gccarmzephyreabi-linux_x86_64-0.16.8-leelabskku.tar.gz"
+      "version": "0.16.8"
     },
     "framework-arduino-zephyr": {
       "type": "framework",
-      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/0.56.0/framework-arduino-zephyr-0.56.0-leelabskku+unoq.tar.gz"
+      "version": "0.56.0"
     },
     "tool-zephyrsketch": {
       "type": "tool",
-      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fzephyr-sketch-tool%2F0.4.0/tool-zephyrsketch-linux_x86_64-0.4.0-leelabskku.tar.gz"
+      "version": "0.4.0"
     },
     "tool-genrodatald": {
       "type": "tool",
-      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fgen-rodata-ld%2F0.1.1/tool-genrodatald-linux_x86_64-0.1.1-leelabskku.tar.gz"
+      "version": "0.1.1"
     },
     "tool-zephyrchecksize": {
       "type": "tool",
-      "version": "https://github.com/lee-lab-skku/ArduinoCore-zephyr/releases/download/tools%2Fzephyr-check-size%2F0.1.0/tool-zephyrchecksize-linux_x86_64-0.1.0-leelabskku.tar.gz"
+      "version": "0.1.0"
     }
   }
 }
