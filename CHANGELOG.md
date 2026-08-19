@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Package declarations now keep in `platform.json` their semantic versions only,
+  while the platform hook derives the other part of URL.
+
 ## [1.0.0-rc.1] &mdash; 2026-08-18
 
 ### Added
