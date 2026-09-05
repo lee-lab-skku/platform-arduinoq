@@ -182,9 +182,16 @@ class ArduinoqPlatform(PlatformBase):
         custom test runner through ``self.platform``.
         """
         board_control = self._load_host_module("board_control")
-        return board_control.BoardControl.from_board_config(
-            self.board_config(board_id)
-        )
+        openocd_dir = self.board_config(board_id).get("upload.openocd_dir", "")
+        # Host-side PlatformIO does not apply SCons's board_* overrides.
+        # Resolve this option without changing the cached board manifest.
+        if self.project_env:
+            openocd_dir = self.config.get(
+                "env:%s" % self.project_env,
+                "board_upload.openocd_dir",
+                openocd_dir,
+            )
+        return board_control.BoardControl(openocd_dir or None)
 
     def configure_debug_session(self, debug_config):
         """Point PlatformIO's debug session at the board's own OpenOCD.
