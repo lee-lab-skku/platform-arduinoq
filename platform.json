@@ -9,7 +9,7 @@
     "type": "git",
     "url": "https://github.com/lee-lab-skku/platform-arduinoq.git"
   },
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "frameworks": {
     "arduino": {
       "package": "framework-arduino-zephyr",
