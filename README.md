@@ -72,6 +72,9 @@ From Windows or macOS nothing builds locally at all. See
 pio pkg install --global --platform https://github.com/lee-lab-skku/platform-arduinoq.git
 ```
 
+The command above downloads the latest dev platform by cloning this repository.
+Or you can install the it from the PlatformIO registry, just like in the next section.
+
 Packages are resolved from GitHub release assets; the `linux_aarch64` build is
 selected automatically on the MPU, nothing has to be configured for it.
 
@@ -79,7 +82,7 @@ selected automatically on the MPU, nothing has to be configured for it.
 
 ```ini
 [env:uno_q]
-platform = https://github.com/lee-lab-skku/platform-arduinoq.git
+platform = lee-lab-skku/arduinoq@1.0.0-rc.3
 board = uno_q
 framework = arduino
 
