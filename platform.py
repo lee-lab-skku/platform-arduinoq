@@ -17,7 +17,7 @@ LAYOUT_MODULE = ("builder", "arduinoq_common", "arduino_zephyr_layout.py")
 LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 
 # Each package owns its repository and release-tag convention. Asset names do
-# follow one pattern and are assembled by the hook from the package name and
+# follow one pattern and are assembled by the resolver from the package name and
 # the complete version in platform.json, including prerelease/build metadata.
 PACKAGE_URL_BASES = {
     "toolchain-gccarmzephyreabi": (
@@ -85,13 +85,18 @@ class ArduinoqPlatform(PlatformBase):
         # debug session behaviour.
         return True
 
-    def configure_default_packages(self, variables, targets):
+    @property
+    def packages(self):
         """Resolve the pinned package versions to host-specific release assets.
 
         platform.json remains the source of truth for versions but contains
         only their nominal strings, keeping the manifest valid under
         PlatformIO's version-field length limit. URL and asset conventions are
         expanded here after the manifest has been loaded.
+
+        Core skips configure_default_packages() for standalone installation.
+        Resolving on package access also covers lookup, update, and removal
+        without a project environment.
         """
         SUPPORTED_SYSTYPES = ("linux_x86_64", "linux_aarch64")
 
@@ -111,9 +116,9 @@ class ArduinoqPlatform(PlatformBase):
             )
 
         # Keep an immutable copy because PlatformBase exposes the manifest's
-        # package dictionaries directly and this hook replaces their version
-        # values in place. The copy also makes repeated configuration calls
-        # safe.
+        # package dictionaries directly and this resolver replaces their version
+        # values in place. Capture the pins before super().packages applies any
+        # project overrides, and reuse them on subsequent accesses.
         if not hasattr(self, "_manifest_package_versions"):
             self._manifest_package_versions = {
                 name: self.manifest["packages"][name]["version"]
@@ -128,7 +133,7 @@ class ArduinoqPlatform(PlatformBase):
             name = item.split("@", 1)[0]
             custom_package_names.add(self.pm.ensure_spec(name).name)
 
-        packages = self.packages
+        packages = super().packages
         for name, urlbase in PACKAGE_URL_BASES.items():
             if name in custom_package_names:
                 continue
@@ -145,7 +150,7 @@ class ArduinoqPlatform(PlatformBase):
                 version,
             )
 
-        return super().configure_default_packages(variables, targets)
+        return packages
 
     # -----------------------------------------------------------------------
     # Host-side services

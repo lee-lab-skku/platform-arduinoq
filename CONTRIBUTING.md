@@ -73,31 +73,34 @@ documented as such in `README.md`.
 
 ### Package versions and release URLs have separate owners
 
-PlatformIO limits a package's manifest `version` field to 100 characters and
-validates it before this platform's hooks run. A complete GitHub release URL
-cannot therefore live in `platform.json`.
+PlatformIO Core 6.1.19 limits platform package dependency `version` strings to 100 characters during manifest validation.
+This platform's complete GitHub release URLs exceed that limit, so they cannot live directly in `platform.json`.
+Core's `develop` branch raises the limit to 255 characters, but the platform retains compatibility with released Core versions that enforce the lower limit.
 
 The split between `platform.json` and `platform.py` is intentional:
 
-- `platform.json` is the single source of truth for each package's complete
-  version, including prerelease and build metadata such as
-  `0.56.0-leelabskku+unoq`.
-- `PACKAGE_URL_BASES` in `platform.py` owns only the repository and Git tag
-  convention. Every entry contains a `{release}` placeholder and must not
-  contain a concrete version number.
-- `configure_default_packages()` strips prerelease and build metadata from the
-  manifest version to fill `{release}`, while retaining the complete version
-  in the release asset's filename.
+- `platform.json` is the single source of truth for each package's complete version, including prerelease and build metadata such as `0.56.0-leelabskku+unoq`.
+- `PACKAGE_URL_BASES` in `platform.py` owns only the repository and Git tag convention.
+  Every entry contains a `{release}` placeholder and must not contain a concrete version number.
+- The `packages` property strips prerelease and build metadata from the manifest version to fill `{release}`, while retaining the complete version in the release asset's filename.
 
-Release assets follow one filename pattern:
-`<urlbase><package-name>[-<systype>]-<version>.tar.gz`. The framework package is
-architecture-independent; the toolchain and helper tools include the detected
-`linux_x86_64` or `linux_aarch64` system type. Explicit `platform_packages`
-overrides bypass this expansion.
+Release assets follow one filename pattern: `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
+The framework package is architecture-independent; the toolchain and helper tools include the detected `linux_x86_64` or `linux_aarch64` system type.
+Explicit `platform_packages` overrides bypass this expansion.
+
+Resolution must happen when Core reads `packages`.
+In Core 6.1.19, `PlatformPackageManager.install()` calls `configure_project_packages()` &mdash; and therefore `configure_default_packages()` &mdash; only when a project environment is supplied.
+Standalone installation through `pio pkg install -g -p <platform>` or the deprecated `pio platform install <platform>` skips that hook and proceeds to `install_required_packages()`.
+Expanding URLs only in that hook leaves standalone installation trying to resolve the nominal versions from the registry.
+The `packages` property also supplies the resolved URLs for package lookups during updates and removal without a project environment.
+
+The resolver snapshots the original pins before accessing `super().packages`, which applies project overrides to the same dictionaries.
+Preserve that snapshot and the override exclusions so repeated accesses never interpret an expanded URL or a user override as a nominal version.
+Core's inherited `configure_default_packages()` remains responsible for selecting packages for frameworks and build targets.
+When changing the resolver, verify project and standalone installation on both supported hosts, explicit overrides, repeated accesses, and package lookup without an environment.
 
 **Therefore:** a normal package version bump changes only `platform.json`.
-Change `PACKAGE_URL_BASES` only when a package moves repository or changes its
-Git tag convention.
+Change `PACKAGE_URL_BASES` only when a package moves repository or changes its Git tag convention.
 
 ## Environmental facts
 
