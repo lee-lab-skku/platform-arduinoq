@@ -214,22 +214,35 @@ during the local build.
 
 Test output arrives over a socket rather than a serial port, and resetting the
 board for a test run goes through OpenOCD rather than a DTR/RTS line.
-PlatformIO gives a development platform no way to register a test runner on
-its own — only `test_custom_runner.py` from the project is ever loaded — so
-the project has to delegate to it:
+The project selects the platform's reader through a custom test runner.
+For Unity tests, add this option to the project's environment in `platformio.ini`:
+
+```ini
+test_framework = custom
+```
+
+Then create `test/test_custom_runner.py`:
 
 ```python
 # test/test_custom_runner.py
-from platformio.test.runners.base import TestRunnerBase
-from platformio.test.runners.readers.serial import SerialTestOutputReader
+from platformio.public import UnityTestRunner
 
 
-class CustomTestRunner(TestRunnerBase):
+class CustomTestRunner(UnityTestRunner):
     def stage_testing(self):
+        if self.options.without_testing:
+            return None
+
         factory = getattr(self.platform, "get_test_output_reader", None)
-        reader = factory(self) if factory else SerialTestOutputReader(self)
-        return reader.begin()
+        if factory:
+            return factory(self).begin()
+
+        return super().stage_testing()
 ```
+
+`UnityTestRunner` supplies result parsing and suite completion.
+The skip guard also keeps the reader from running during the local build phase of `pio remote test`.
+Projects with an existing custom parser can use the same `stage_testing()` method in their runner while keeping their parsing and completion handling.
 
 A test run resets the board first, connects to the monitor socket, and only
 then releases the sketch — which is why test builds default to `app` boot mode
