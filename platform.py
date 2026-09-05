@@ -258,16 +258,12 @@ class ArduinoqPlatform(PlatformBase):
         call whose out-parameter names the regions the loader allocated. Both
         are loaded here, together with the helper that reads them.
 
-        Appended to the tool's own extra commands rather than replacing them,
-        and PlatformIO concatenates the project's debug_extra_cmds after these
-        in any case.
+        Append symbol placement to the effective initialization commands so
+        it completes before the project's and tool's extra commands.
         """
         layout = self._load_module(*LAYOUT_MODULE).resolve(
             self, debug_config.board_config
         )
-
-        if not debug_config.tool_settings.get("init_cmds"):
-            debug_config.tool_settings["init_cmds"] = list(DEBUG_INIT_CMDS)
 
         commands = [
             # A safety net only, now that the sketch's symbols stay loaded
@@ -314,9 +310,13 @@ class ArduinoqPlatform(PlatformBase):
             "echo \\n[arduinoq] stopped in the loader, with the sketch's "
             "symbols in place.\\n",
         ]
-        debug_config.tool_settings["extra_cmds"] = (
-            list(debug_config.tool_settings.get("extra_cmds") or []) + commands
-        )
+        # PlatformIO runs project extra commands before tool extra commands.
+        # Symbol placement belongs in initialization so both can use it.
+        # Resolve project/tool init overrides first, and keep the combined
+        # commands on this session rather than the cached board settings.
+        debug_config.env_options["debug_init_cmds"] = (
+            debug_config.init_cmds or list(DEBUG_INIT_CMDS)
+        ) + commands
 
     def get_test_output_reader(self, test_runner):
         """Reader that collects unit-test output from this board.
