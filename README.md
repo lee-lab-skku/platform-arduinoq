@@ -68,11 +68,8 @@ From Windows or macOS nothing builds locally at all. See
 
 ## Installation
 
-```ini
-[env:uno_q]
-platform = https://github.com/lee-lab-skku/platform-arduinoq.git
-board = uno_q
-framework = arduino
+```console
+pio pkg install --global --platform https://github.com/lee-lab-skku/platform-arduinoq.git
 ```
 
 Packages are resolved from GitHub release assets; the `linux_aarch64` build is

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Host-side board control and debug sessions now honor `board_upload.openocd_dir` from the active project environment.
 - Sketch debug symbols are loaded before project and tool extra commands run, while preserving custom initialization commands.
+- Standalone platform installation now resolves dependencies from GitHub release assets without requiring a project environment.
 
 ## [1.0.0-rc.2] &mdash; 2026-08-19
 
