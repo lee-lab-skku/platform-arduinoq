@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The README's unit-testing example now uses `UnityTestRunner`, declares `test_framework = custom`, and skips testing when requested.
+
+### Fixed
+
+- Host-side board control and debug sessions now honor `board_upload.openocd_dir` from the active project environment.
+- Sketch debug symbols are loaded before project and tool extra commands run, while preserving custom initialization commands.
+
 ## [1.0.0-rc.2] &mdash; 2026-08-19
 
 ### Changed
