@@ -1,70 +1,44 @@
 # Arduino Q: development platform
 
-A PlatformIO development platform for Arduino's **Q series** — boards that pair
-a Linux application processor (the *MPU*) with a Zephyr-based microcontroller
-(the *MCU*), programmed as a single Arduino sketch. It currently ships support
-for the **UNO Q**; nothing else in the family has been built yet, but the
-packaging (variants, per-board firmware, board manifests) is laid out to add
-one without restructuring.
+A PlatformIO development platform for Arduino's **Q series** &mdash; boards that pair a Linux application processor (the *MPU*) with a Zephyr-based microcontroller (the *MCU*).
+This platform builds a single Arduino sketch for the MCU.
+Only **UNO Q** support is currently implemented in this repository.
 
-This is an **unofficial, independent platform**, not produced or endorsed by
-Arduino, the Zephyr Project, or PlatformIO Labs. "Arduino," "Zephyr," and
-"PlatformIO" name the projects this interoperates with; no affiliation is
-implied.
-
-**No warranty.** This repository — code and documentation alike — was written
-with substantial AI assistance and has had no external review. It flashes and
-resets real hardware; treat it accordingly, and see [LICENSE.txt](LICENSE.txt)
-for the disclaimer this is offered under.
+This is an **unofficial, independent platform**, not produced or endorsed by Arduino, the Zephyr Project, or PlatformIO Labs.
+"Arduino," "Zephyr," and "PlatformIO" name the projects this interoperates with; no affiliation is implied.
 
 ## What this is
 
-A sketch is not built as standalone firmware. The MCU permanently runs a
-**resident firmware** that ships inside the framework package, and a sketch is
-built as a relocatable **LLEXT extension** that the resident firmware loads at
-runtime. This shows up throughout the workflow — most visibly in why uploading
-and debugging both have to happen through the MPU rather than a USB debug
-probe — and the rest of this document explains the specific consequences as
-they come up.
+The MCU runs **resident firmware** supplied by the framework package.
+The platform builds your sketch as a relocatable **LLEXT extension** that this firmware loads at runtime.
+Uploading and debugging through this platform use the MPU, as described in [Requirements](#requirements).
 
-Neither the Q series nor its Zephyr-based MCU side has official PlatformIO
-support upstream. Everything here — the platform, the toolchain build, the
-framework package, and the helper tools — is packaged independently.
+Neither the Q series nor its Zephyr-based MCU side has official PlatformIO support upstream.
+Everything here &mdash; the platform, the toolchain build, the framework package, and the helper tools &mdash; is packaged independently.
 
 ## Requirements
 
-**The build host must be Linux**, `x86_64` or `aarch64`. Every package this
-platform installs is a Linux build. `pio run` on any other host fails
-immediately with an explanatory error.
+**The build host must be Linux**, `x86_64` or `aarch64`.
+Every package this platform installs is a Linux build.
+`pio run` on any other host fails immediately with an explanatory error.
 
-A non-Linux workstation can still be used, through PlatformIO's remote mode
-with `--force-remote` (`-r`), which runs the whole build on the board. See
-[Remote builds](#remote-builds).
+A non-Linux workstation can still be used, through PlatformIO's remote mode with `--force-remote` (`-r`), which runs the whole build on the board.
+See [Remote builds](#remote-builds).
 
-**Flashing and debugging happen on the MPU**, over its GPIO lines through
-OpenOCD's `linuxgpiod` driver — there is no USB debug probe. This requires the
-OpenOCD build that ships in the board image, at `/opt/openocd` by default. A
-stock OpenOCD will not do: it typically lacks both gpiod support and the gpiod
-interface configuration this needs.
+**Flashing and debugging happen on the MPU**, over its GPIO lines through OpenOCD's `linuxgpiod` driver.
+The platform uses the OpenOCD installation shipped in the board image, at `/opt/openocd` by default.
+An alternative installation must have `linuxgpiod` support enabled and include the board's `openocd_gpiod.cfg` interface configuration.
+The driver is available in [upstream OpenOCD](https://openocd.org/doc/html/Debug-Adapter-Configuration.html), but its availability in a particular build depends on the build configuration.
 
 ## Where the build runs
 
-**The default mode assumes you are working on the board.** `pio run`,
-`pio test`, and `pio debug` all run where you invoke them, and everything past
-building needs the MPU: uploading and resetting go through the OpenOCD
-installation in the board image, driving the MCU over the MPU's own GPIO
-lines, and test output arrives on a socket the MPU's router service exposes.
-None of that exists on a workstation. So the ordinary way to use this platform
-is over SSH to the board, or in an editor session attached to it.
+Run the platform directly on the MPU over SSH or through an editor session attached to the board.
+`pio run`, `pio test`, and `pio debug` execute on the machine where you invoke them.
+Uploading and resetting need the MPU's GPIO connection to the MCU, and test output uses the MPU's router service.
 
-A separate Linux `x86_64` workstation can still run the targets that only
-build — the default target, `checklink`, `size` — since the toolchain is
-packaged for both architectures. `upload`, `test`, and `debug` are not
-available there, and there is no cross-machine handoff for them outside of
-PlatformIO's remote mode.
-
-From Windows or macOS nothing builds locally at all. See
-[Remote builds](#remote-builds).
+A separate supported Linux workstation can run build-only targets: the default target, `checklink`, and `size`.
+Use [Remote builds](#remote-builds) to hand off uploading or testing to the board.
+Windows and macOS workstations require `--force-remote` because this platform's packages cannot build locally on those systems.
 
 ## Installation
 
@@ -72,13 +46,15 @@ From Windows or macOS nothing builds locally at all. See
 pio pkg install --global --platform https://github.com/lee-lab-skku/platform-arduinoq.git
 ```
 
-The command above downloads the latest dev platform by cloning this repository.
-Or you can install the it from the PlatformIO registry, just like in the next section.
+This command installs the development version by cloning this repository.
+To use a versioned release from the PlatformIO registry, follow [Quick start](#quick-start).
 
-Packages are resolved from GitHub release assets; the `linux_aarch64` build is
-selected automatically on the MPU, nothing has to be configured for it.
+Packages are resolved from GitHub release assets.
+The `linux_aarch64` build is selected automatically on the MPU.
 
 ## Quick start
+
+On the MPU, create a project with the following `platformio.ini`:
 
 ```ini
 [env:uno_q]
@@ -89,6 +65,8 @@ framework = arduino
 lib_deps =
     https://github.com/lee-lab-skku/arduino-router-bridge.git
 ```
+
+Save the sketch as `src/main.cpp`:
 
 ```cpp
 #include <Arduino.h>
@@ -103,26 +81,19 @@ void loop() {
 }
 ```
 
+Build and upload it:
+
 ```console
 pio run -t upload
 ```
 
 ### `Serial` requires Arduino_RouterBridge
 
-**This is the single most common way for a first build to fail.** `Serial` is
-not a UART on these boards — it is a logical channel carried over the MCU↔MPU
-link, provided by the **Arduino_RouterBridge** library rather than by the core.
-Without it in `lib_deps`, any sketch touching `Serial` fails to compile with
-`'Serial' was not declared in this scope`. PlatformIO has no mechanism for a
-platform to declare a library dependency on a sketch's behalf, so this is
-unavoidably something every project has to add for itself.
+`Serial` is a logical channel carried over the MCU&harr;MPU link, provided by the **Arduino_RouterBridge** library rather than by the core.
+Add RouterBridge to `lib_deps` when using `Serial`, as shown above.
+PlatformIO resolves its RPCLite and MsgPack dependencies automatically.
 
-RouterBridge depends on RPCLite and MsgPack in turn. Neither has a tagged
-upstream release, so its own manifest pins both to forks built off their
-`main` branches; adding RouterBridge alone is enough, PlatformIO's dependency
-resolution pulls the rest in automatically.
-
-`Serial1` *is* a real UART, on `D0`/`D1`.
+`Serial1` provides hardware UART access on `D0`/`D1`.
 
 ## Targets
 
@@ -134,19 +105,15 @@ resolution pulls the rest in automatically.
 | `size` | Report flash and LLEXT heap usage |
 | `nobuild` | Use artifacts from a previous build without rebuilding |
 
-`checklink` runs as part of every build regardless; the target just exposes it
-on its own. It exists because the shipped artifact is relocatable, and a
-relocatable link leaves undefined symbols unresolved and places nothing — so
-neither "does it link" nor "does it fit" is answered by the build that
-actually ships. `checklink` performs a throwaway static link, against fixed
-memory regions, purely to answer those two questions.
+`checklink` runs as part of every build and can also be invoked on its own.
+It checks symbol resolution and memory limits using a temporary static link, because the relocatable upload artifact alone does not establish whether the sketch links and fits.
 
 ## Configuration
 
 ### `board_build.boot_mode`
 
-Controls when the sketch starts, relative to Linux booting on the MPU. Written
-into the packed image at packing time, so changing it needs a rebuild.
+Controls when the sketch starts relative to Linux booting on the MPU.
+The value is stored in the packed image, so changing it requires a rebuild.
 
 | Value | Behaviour |
 | --- | --- |
@@ -154,42 +121,32 @@ into the packed image at packing time, so changing it needs a rebuild.
 | `app` | Hold in the loader, before the sketch is loaded at all, until the MPU releases it |
 | `immediate` | Start at once |
 
-"app" is the resident firmware's name for the flag, and it means the sketch —
-not a Linux-side application. The loader parks ahead of loading it, polling a
-word at the start of backup SRAM, and proceeds once the MPU writes something
-non-zero there. Flashing does that write as part of its own sequence, so an
-ordinary `upload` is unaffected; a plain reset does not, which is what makes
-the mode useful for testing.
+In `app` mode, an ordinary upload releases the sketch, while a plain reset leaves it waiting for the MPU.
+This allows the test reader to connect before the sketch starts.
 
-Rather than one default, the mode follows what is being built:
+The default depends on the build type:
 
 | Build | Default | Why |
 | --- | --- | --- |
-| Debug | `immediate` | The loader would otherwise be parked in its startup wait when you attach, and whether a session can place the sketch's symbols would depend on what Linux happens to be doing |
-| Test | `app` | Holds the board until the test reader has attached to the monitor socket, so no output can be produced before there is anything reading it |
+| Debug | `immediate` | Allows the debugger to reach sketch loading without waiting for Linux |
+| Test | `app` | Lets the test reader connect before the sketch starts |
 | Otherwise | `wait` | Matches the resident firmware's own default |
 
-Debug wins over test, since a debug test session is both: a breakpoint in the
-loader already holds the board, so the reader does not need to.
+Debug takes precedence over test when both apply.
+An explicit `board_build.boot_mode` overrides these defaults.
 
-Setting `board_build.boot_mode` explicitly overrides all of it.
-
-**Do not set `immediate` globally as a convenience.** Anything the sketch
-writes before the bridge is up is lost rather than buffered, so early
-`Serial` output drops intermittently, depending on which side of that race
-wins — a genuinely unpleasant thing to chase down.
+**Avoid setting `immediate` globally.**
+Early `Serial` output can be lost if the sketch starts before the bridge is ready.
 
 ### `board_upload.openocd_dir`
 
-Points at a different OpenOCD installation. It must have Linux GPIO support
-and `openocd_gpiod.cfg` at its root; both are checked, and a missing one is
-reported by name.
+Selects an alternative OpenOCD installation.
+It must have Linux GPIO support and `openocd_gpiod.cfg` at its root; both are checked, and a missing one is reported by name.
 
 ### `test_port`
 
-Defaults to `socket://localhost:7500`, the socket the RouterBridge monitor
-channel surfaces on — there is no USB serial device for PlatformIO's usual
-port discovery to find.
+Defaults to `socket://localhost:7500`, which exposes the RouterBridge monitor channel.
+This workflow uses that socket instead of USB serial port discovery.
 
 ## Remote builds
 
@@ -200,20 +157,15 @@ pio remote test -f test_xxx       # builds a single suite locally, and tests on 
 pio remote test -r                # builds and tests on the board
 ```
 
-Without `-r`/`--force-remote`, the build runs on the *workstation* and only
-the result ships to the board — on a non-Linux workstation, that local build
-is exactly what fails. **Use `-r` from Windows or macOS.**
+Without `-r`/`--force-remote`, the build runs on the *workstation* and only the result ships to the board &mdash; on a non-Linux workstation, that local build is exactly what fails.
+**Use `-r` from Windows or macOS.**
 
-`pio remote run` also re-issues whatever `-t` targets were passed on the
-remote leg, with `nobuild` appended. `pio remote run -t checklink -t upload`
-therefore reaches the board with `checklink` and `nobuild` together; this is
-accepted as a no-op rather than failing, since the real check already ran
-during the local build.
+`pio remote run -t checklink -t upload` is supported.
+The link check runs during the build; the upload-only remote step does not repeat it.
 
 ## Unit testing
 
-Test output arrives over a socket rather than a serial port, and resetting the
-board for a test run goes through OpenOCD rather than a DTR/RTS line.
+Test output arrives over a socket rather than a serial port, and resetting the board for a test run goes through OpenOCD rather than a DTR/RTS line.
 The project selects the platform's reader through a custom test runner.
 For Unity tests, add this option to the project's environment in `platformio.ini`:
 
@@ -244,112 +196,79 @@ class CustomTestRunner(UnityTestRunner):
 The skip guard also keeps the reader from running during the local build phase of `pio remote test`.
 Projects with an existing custom parser can use the same `stage_testing()` method in their runner while keeping their parsing and completion handling.
 
-A test run resets the board first, connects to the monitor socket, and only
-then releases the sketch — which is why test builds default to `app` boot mode
-(see [`board_build.boot_mode`](#board_buildboot_mode)). Nothing the sketch
-prints can be missed or arrive interleaved with the reset, so a test suite does
-not need to wait on `Serial` or delay in `suiteSetup` to compensate.
+A test run resets the board first, connects to the monitor socket, and only then releases the sketch &mdash; which is why test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
+This sequence avoids losing startup output because the reader attached too late or mixing it with output interrupted by reset.
 
-With `--no-reset` the board is left alone and neither step happens; a sketch
-packed for `app` boot mode is then still parked in the loader, so pair that
-option with an explicit `board_build.boot_mode`.
+With `--no-reset`, the reader does not reset the board or release the sketch; a sketch packed for `app` boot mode is then still parked in the loader, so pair that option with an explicit `board_build.boot_mode`.
 
-If the board falls silent mid-suite, or the bridge drops the connection, the
-run ends with a message saying which happened rather than waiting indefinitely.
-The silence timeout is sized for the gap between lines of output, so a
-long-running individual test case will not trip it.
+If the board falls silent mid-suite, or the bridge drops the connection, the run ends with a message saying which happened rather than waiting indefinitely.
+The reader also applies a silence timeout between lines of output.
 
-If a test binary crashes on entry, Unity's `setjmp`/`longjmp` support does not
-survive this environment — build tests with `-DUNITY_EXCLUDE_SETJMP_H`.
+If a test binary crashes on entry, Unity's `setjmp`/`longjmp` support does not survive this environment &mdash; build tests with `-DUNITY_EXCLUDE_SETJMP_H`.
 
 ## Troubleshooting
 
-**`arduino-router.service` has to be running on the MPU.** It isn't only
-relaying `Serial` — it's also part of the reset and flashing sequence. If it's
-stopped, uploads, resets, and serial communication can all start failing in
-ways that don't obviously point back to it. If something inexplicable is
-happening, check its status before anything else.
+**`arduino-router.service` must be running on the MPU.**
+The service participates in reset and flashing as well as relaying `Serial`.
+Check its status when uploads, resets, or serial communication fail unexpectedly.
 
 ## Board resources
 
-Currently `uno_q` only — STM32U585, Cortex-M33 with a hardware
-single-precision FPU:
+Currently `uno_q` only &mdash; STM32U585, Cortex-M33 with a hardware single-precision FPU:
 
 | Resource | Size |
 | --- | --- |
 | Sketch flash (`user_sketch` partition) | 768 KiB |
 | LLEXT heap | 256 KiB |
 
-These are the limits `checklink` and the size check report against — not the
-chip's total flash or RAM, most of which belongs to the resident firmware.
+These are the sketch limits reported by `checklink` and the size check.
+They represent allocations within the resident firmware layout, rather than the chip's total flash or RAM.
 
 ## Known issues
 
-The following behaviors originate in PlatformIO Core's remote orchestration,
-not in this platform. They are listed here because they are easy to mistake
-for platform bugs.
+The following behaviors originate in PlatformIO Core's remote orchestration, not in this platform.
+They are listed here because they are easy to mistake for platform bugs.
 
 ### Only the last test suite runs under `pio remote test`
 
-When a project defines multiple test suites, a non-forced remote test run
-executes only the last one. This is a long-standing upstream issue; the
-upstream guidance is to use `--force-remote`.
+When a project defines multiple test suites, a non-forced remote test run executes only the last one.
+This is a long-standing upstream issue; the upstream guidance is to use `--force-remote`.
 
 ### "Building & uploading" is printed on upload-only runs
 
-In a non-forced remote run the local leg has already built the project, and
-the remote leg receives `nobuild`. The "Building & uploading" label is emitted
-by PlatformIO's `TestRunnerBase` whenever the platform is detected as embedded,
-independently of the path actually taken. The message does not indicate that a
-rebuild is happening on the board.
+In a non-forced remote run the local leg has already built the project, and the remote leg receives `nobuild`.
+The "Building & uploading" label can still appear during this upload-only step; it does not indicate that the board is rebuilding the project.
 
 ### The local leg reports 0 tests
 
-A non-forced remote test splits into a local build leg and a remote execution
-leg. The local leg only builds, so it has no results to report and prints a
-zero count. The real result comes from the remote leg.
+A non-forced remote test splits into a local build leg and a remote execution leg.
+The local leg only builds, so it has no results to report and prints a zero count.
+The real result comes from the remote leg.
 
 ### Recommendation
 
-If a remote test produces output or a result count that does not match
-expectations, re-run with `-r` (`--force-remote`) before investigating further.
+If a remote test produces output or a result count that does not match expectations, re-run with `-r` (`--force-remote`) before investigating further.
 Running the test directly on the MPU is also a useful reference point.
 
 ## Limitations
 
 - **Only the dynamic (relocatable LLEXT) link mode is supported.**
-- **The framework identifier is `arduino`, deliberately** — splitting it out
-  (e.g. `arduino-zephyr`) would lose compatibility with every library
-  declaring `frameworks=arduino`. The tradeoff is that libraries advertise
-  compatibility they cannot really promise: this is Zephyr underneath, and
-  anything assuming AVR/SAM internals, or colliding with a Zephyr global
-  symbol, will fail. Compatibility is best-effort; it's on you to judge
-  whether a given library applies.
+- **Arduino library compatibility is best-effort.**
+  The `arduino` framework identifier allows discovery of Arduino libraries, but libraries that depend on AVR/SAM internals or conflict with Zephyr symbols may fail.
+  Check whether each library supports the board and its Zephyr-based core.
 - **Only the UNO Q is implemented** at present.
 
-## Repository layout
+## Contributing
 
-```text
-platform.py                          Platform class: packages, debug, test hooks
-builder/
-  main.py                            Target orchestration
-  frameworks/arduino-zephyr.py       Framework integration, flags, libraries
-  artifacts/zephyr-llext.py          Multi-pass link, strip, pack, size, checklink
-  upload/openocd.py                  Upload backend
-  arduinoq_common/                   SCons-free helpers, also used from host/
-    arduino_zephyr_layout.py         Where the framework package keeps things
-    openocd_layout.py                Where the OpenOCD installation keeps things
-host/
-  board_control.py                   Reset/halt through OpenOCD
-  test_reader.py                     Socket-based test output reader
-  gdb/llext.gdb                      Symbol placement helpers
-boards/uno_q.json                    Board manifest
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development requirements, architectural constraints, and validation guidance.
+
+## AI assistance
+
+The code and documentation were written with substantial AI assistance.
+This platform flashes and resets physical hardware; review changes and validate them on the intended board before relying on them.
 
 ## License
 
-Apache License 2.0 — see [LICENSE.txt](LICENSE.txt).
+Apache License 2.0 &mdash; see [LICENSE.txt](LICENSE.txt), including its warranty disclaimer.
 
-Packages this platform installs carry their own licenses:
-`framework-arduino-zephyr` derives from Arduino's ArduinoCore-zephyr,
-`toolchain-gccarmzephyreabi` from the Zephyr Project's SDK.
+Packages this platform installs carry their own licenses: `framework-arduino-zephyr` derives from Arduino's ArduinoCore-zephyr, `toolchain-gccarmzephyreabi` from the Zephyr Project's SDK.

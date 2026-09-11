@@ -1,142 +1,129 @@
-# Maintainer notes
+# Contributing
 
-This document is for people and agents working *on* this repository,
-covering the part that is hard to recover by reading the code; what the platform
-does and how to use it is in `README.md`.
+This document covers contracts and reasoning that span files or execution environments and do not have a natural home in a single code comment.
+It also records failed approaches whose causes would otherwise need to be rediscovered.
+For installation, project configuration, and board operation, see [README.md](README.md).
 
-Everything here is either an invariant no single file owns, or a record of
-something already tried and disproved. Anything explaining why one particular
-line is the shape may belong next to that line, not here.
+Keep enough of each cross-file flow to explain where its assumptions hold and where they break.
+File and function names belong here when they identify the participants in that contract; details local to one implementation belong beside the code.
 
 ## Cross-file contracts
 
-These are the things that break quietly, because no single file is responsible
-for them and a change to one side leaves the other still compiling.
+### Framework paths must be available without a build
 
-### Framework adapter does not run before the artifact module
+PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
+`builder/artifacts/zephyr-llext.py` calls it during a build but deliberately skips it in `nobuild` mode, so the framework adapter's `ARDUINO_ZEPHYR_*` exports are unavailable in upload-only execution.
 
-PlatformIO runs framework scripts from inside `ProcessProgramDeps()`, which
-`builder/artifacts/zephyr-llext.py` calls — and deliberately skips in
-`nobuild` mode.
+Modules that need framework paths in both modes must use `builder/arduinoq_common/arduino_zephyr_layout.py` without depending on framework initialization.
+`builder/upload/openocd.py` needs those paths even when uploading existing artifacts; upload-only remote sessions are the case that breaks if it relies on the adapter's exports.
 
-**Therefore:** any module needing framework package paths *regardless of build
-mode* must go through `builder/arduinoq_common/arduino_zephyr_layout.py`, not
-through the adapter's `ARDUINO_ZEPHYR_*` exports. `builder/upload/openocd.py`
-is the module this exists for; upload-only remote sessions are the case that
-breaks without it.
+### Shared helpers must remain independent of SCons
 
-### `arduinoq_common` is SCons-free, deliberately
+Both `builder/`, running inside SCons, and `host/`, running in PlatformIO's own process, import `arduinoq_common`.
+Keep that package free of SCons dependencies so importing a shared helper does not break the host side.
 
-Both `builder/` (inside SCons) and `host/` (inside PlatformIO's own process)
-import it. Importing SCons there would break the `host/` side.
+Adding `builder/` to `sys.path` exposes its packages under top-level names throughout the SCons process.
+The platform-specific name `arduinoq_common` avoids the collisions a generic `common` package could cause.
+`platform.py` handles the related risk by loading helpers by path rather than exposing itself as a top-level `platform` module.
+Preserve these import boundaries when moving shared code.
 
-The package is named for this platform rather than `common` because putting
-`builder/` on `sys.path` publishes its packages under top-level names for the
-whole SCons process. `platform.py` avoids the same hazard differently &mdash; it
-loads helpers by path so as not to publish itself as `platform`.
+### Sketch startup is an artifact and host coordination contract
 
-### Boot mode is a three-file protocol
+`board_build.boot_mode` is written into the packed image by `zephyr-sketch-tool`; it is fixed at packing time, rather than selected during compilation or upload.
+The default values and override precedence are documented in [Boot mode](README.md#board_buildboot_mode).
+Debug builds use `immediate` because waiting in the loader's `control_gpios` path before `llext_load` would make sketch symbol placement depend on Linux startup timing.
+Test builds use `app` to hold the loader before loading the sketch until the reader is connected.
+Debug takes precedence for a debug test session because a loader breakpoint already provides the hold.
 
-`board_build.boot_mode` decides when a loaded sketch starts. The value is
-written into the packed image by `zephyr-sketch-tool`, so it is a property of
-the artifact, fixed at packing time, not at compile or upload time.
+The `app` path depends on agreement between packing, the test reader, and board control:
 
-| Build type | Default | Why |
-| --- | --- | --- |
-| `debug` | `immediate` | The loader must not park in its `control_gpios` wait before reaching `llext_load`, or symbol placement depends on what Linux is doing |
-| `test` | `app` | The loader holds before loading the sketch until the host releases it, so the reader attaches before the first line of output exists |
-| `release` | `wait` | Upstream's default |
+1. `builder/artifacts/zephyr-llext.py` packs with `-wait_for_app` so the resident loader waits before loading the sketch.
+1. `host/test_reader.py` resets the board, connects to the monitor socket, and only then calls `release()`.
+1. `host/board_control.py` releases the loader by writing its control word at the start of backup SRAM through OpenOCD.
 
-Debug wins over test. An explicit `board_build.boot_mode` overrides all of it.
+Ordinary uploading includes the release write; a plain reset does not.
+Keep these operations distinct so tests can attach while the sketch is held.
 
-The `app` path spans three files and only works if all three agree:
+A previous startup-output failure came from connecting the reader before resetting: SRST interrupted a mid-flight RPC response, and its leftover `0x01` merged with the next boot's banner.
+Resetting first and holding the loader in `app` mode until the reader connected resolved it.
+Changes to packing, reset, or reader startup must preserve that sequence; changing framing or flushing alone does not address the cause.
 
-1. `builder/artifacts/zephyr-llext.py` packs with `-wait_for_app`
-1. `host/test_reader.py` resets, connects, *then* calls `release()`
-1. `host/board_control.py` writes the magic word over OpenOCD
+### Library ownership and compatibility
 
-### The framework manifest owns which libraries exist
+The framework package's export policy owns the contents of `libraries/`; do not duplicate that inventory in the platform.
+Set `LIBSOURCE_DIRS` to the shared `libraries/` storage directory.
+PlatformIO discovers libraries among each storage directory's children, so listing individual library directories breaks discovery.
 
-The framework package's export policy decides what ships in `libraries/`. The
-platform does not restate that list.
+Keep the framework identifier `arduino` to retain compatibility with libraries declaring `frameworks=arduino` without requiring `lib_compat_mode=off`.
+This identifier does not guarantee that a library works with Zephyr.
+The user-facing compatibility limits belong in [Limitations](README.md#limitations).
 
-`LIBSOURCE_DIRS` must be the single `libraries/` storage directory &mdash;
-PlatformIO enumerates each element's *children* as libraries. Listing
-`libraries/<name>[/src]` per library makes discovery return nothing at all.
+### Remote targets must remain available without rebuilding
 
-### The framework identifier stays `arduino`
+For a non-forced `pio remote run`, the local leg runs the fixed targets `["checkprogsize", "buildprog"]`, while the remote leg reissues the caller's targets with `nobuild` appended.
+For example, `pio remote run -t checklink -t upload` reaches the board with both `checklink` and `nobuild`, even though the local build has already performed the link check.
 
-Splitting it (`arduino-zephyr`) would lose compatibility with libraries declaring
-`frameworks=arduino`, unless `lib_compat_mode=off` . The accepted cost is that libraries advertise
-compatibility they cannot deliver &mdash; this is Zephyr underneath. Best-effort,
-documented as such in `README.md`.
+Keep `checklink` registered unconditionally and accept it as a no-op in `nobuild` mode.
+Otherwise, an upload-only remote invocation can fail on an unknown target despite a successful local build.
 
-### Package versions and release URLs have separate owners
+## Package resolution
 
-PlatformIO Core 6.1.19 limits platform package dependency `version` strings to 100 characters during manifest validation.
-This platform's complete GitHub release URLs exceed that limit, so they cannot live directly in `platform.json`.
-Core's `develop` branch raises the limit to 255 characters, but the platform retains compatibility with released Core versions that enforce the lower limit.
+### Version and URL ownership
 
-The split between `platform.json` and `platform.py` is intentional:
+Keep each package's complete semantic version, including prerelease and build metadata, in `platform.json` as the single source of truth.
+`PACKAGE_URL_BASES` in `platform.py` owns the repository and Git tag convention, with a `{release}` placeholder rather than a concrete version.
+A routine package version bump should change only `platform.json`.
+Change URL bases when a package moves repository or changes its tag convention.
 
-- `platform.json` is the single source of truth for each package's complete version, including prerelease and build metadata such as `0.56.0-leelabskku+unoq`.
-- `PACKAGE_URL_BASES` in `platform.py` owns only the repository and Git tag convention.
-  Every entry contains a `{release}` placeholder and must not contain a concrete version number.
-- The `packages` property strips prerelease and build metadata from the manifest version to fill `{release}`, while retaining the complete version in the release asset's filename.
+PlatformIO Core 6.1.19 limits package dependency `version` strings to 100 characters during manifest validation.
+The complete release asset URLs exceed that limit, so preserve separate version pins and URL expansion while supporting this Core version.
 
-Release assets follow one filename pattern: `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
-The framework package is architecture-independent; the toolchain and helper tools include the detected `linux_x86_64` or `linux_aarch64` system type.
-Explicit `platform_packages` overrides bypass this expansion.
+Release assets use `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
+The `packages` property strips prerelease and build metadata when filling the release tag placeholder, but retains the complete version in the asset filename.
+For example, a pin such as `0.56.0-leelabskku+unoq` supplies `0.56.0` for `{release}` while keeping the complete pin in the filename.
+The framework package is architecture-independent; toolchains and helper tools include `linux_x86_64` or `linux_aarch64` in their asset names.
+Explicit `platform_packages` overrides must bypass URL expansion.
 
-Resolution must happen when Core reads `packages`.
-In Core 6.1.19, `PlatformPackageManager.install()` calls `configure_project_packages()` &mdash; and therefore `configure_default_packages()` &mdash; only when a project environment is supplied.
-Standalone installation through `pio pkg install -g -p <platform>` or the deprecated `pio platform install <platform>` skips that hook and proceeds to `install_required_packages()`.
-Expanding URLs only in that hook leaves standalone installation trying to resolve the nominal versions from the registry.
-The `packages` property also supplies the resolved URLs for package lookups during updates and removal without a project environment.
+### Resolution without a project environment
 
-The resolver snapshots the original pins before accessing `super().packages`, which applies project overrides to the same dictionaries.
-Preserve that snapshot and the override exclusions so repeated accesses never interpret an expanded URL or a user override as a nominal version.
-Core's inherited `configure_default_packages()` remains responsible for selecting packages for frameworks and build targets.
-When changing the resolver, verify project and standalone installation on both supported hosts, explicit overrides, repeated accesses, and package lookup without an environment.
+Resolve package URLs when Core reads `packages`, including during standalone installation, updates, and removal.
+In Core 6.1.19, `PlatformPackageManager.install()` calls `configure_project_packages()`, and therefore `configure_default_packages()`, only when a project environment is supplied.
+Standalone `pio pkg install -g -p <platform>` and the deprecated `pio platform install <platform>` skip that hook and proceed to `install_required_packages()`.
+Expanding URLs only in the project hook therefore leaves standalone installation resolving nominal version pins from the registry instead of fetching release assets.
+The `packages` property must also supply resolved URLs for updates and removal without a project environment.
 
-**Therefore:** a normal package version bump changes only `platform.json`.
-Change `PACKAGE_URL_BASES` only when a package moves repository or changes its Git tag convention.
+The resolver snapshots the original version pins before accessing `super().packages`, which applies project overrides to the same dictionaries.
+Preserve that ordering and the override exclusions: repeated access must never reinterpret an expanded URL or a user override as a version pin.
+Core's inherited `configure_default_packages()` remains responsible for framework and target package selection.
 
-## Environmental facts
+When changing resolution, verify:
 
-Things that look like bugs in this platform and are not.
+- Project installation and standalone `pio pkg install -g -p <platform>` on both supported host architectures.
+- Explicit `platform_packages` overrides.
+- Repeated access to package metadata.
+- Package lookup without a project environment, including update and removal paths.
 
-- **The MCU boots from System Memory ROM.**
-  `arduino-router.service` sends the bootloader command that jumps to flash.
-  A stopped router therefore breaks keeps the firmware from running.
-- **`pio remote run` re-issues the caller's targets** on the remote leg
-  with `nobuild` appended, while the local leg always runs a fixed
-  `["checkprogsize", "buildprog"]`. `checklink` must therefore stay registered
-  unconditionally.
-- **`linuxgpiod` ignores `adapter speed`** entirely.
-- The shipped OpenOCD is sourced from *Arduino* fork, while the MCU configuration files come from *ST* fork.
+## Board integration constraints
 
----
+The board environment used by this platform boots the MCU through System Memory ROM.
+`arduino-router.service` sends the bootloader command that transfers execution to flash, so reset and startup depend on the router being available.
+Keep this dependency visible in the user's [Troubleshooting](README.md#troubleshooting) guidance.
 
-Do not re-derive these. Each was tried and disproved.
+Use the board image's OpenOCD installation as the integration baseline.
+The shipped executable comes from Arduino's fork, while the MCU configuration files come from ST's fork; validate them together when changing the integration.
+Do not rely on `adapter speed` to control the shipped `linuxgpiod` driver's speed.
 
-- **RouterBridge `bridge.h` flush byte.** `0xC1` is wrong and
-  the change was reverted; the banner mechanism was not the cause. `0xC1`
-  causes an infinite loop in `Unpacker::feed()`.
-- **Stray bytes among the first lines of test output.** Not a framing or flush
-  problem. The reader connected before resetting, so SRST cut a mid-flight RPC
-  response frame; its leftover `0x01` merged with the next boot's banner. Fixed
-  by resetting first and holding the loader in `app` mode until the reader is
-  attached.
+Do not use `0xC1` as a flush byte in RouterBridge's `bridge.h`.
+That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`; the startup banner mechanism was not the cause.
+The startup-output failure and the reset ordering that resolved it are described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
+Revisit this only with evidence that the protocol or parser behavior has changed.
 
-## Deferred
+## Deferred decisions
 
-Decided against, with reasons. Reopening needs a new reason, not a rediscovery.
-
-- **Zephyr SDK 1.0 migration** &mdash; watching framework upstream. It drops `newlib`,
-  which the current framework relies on.
-- **OpenOCD as a declared package** &mdash; PlatformIO only treats a platform as
-  embedded if an uploader package is declared, but overriding adresses it. Because the
-  sources of truth are scattered in repositories, just using the shipped OpenOCD version now.
-- **Manifest fields such as `build.core` or `build.f_cpu`** &mdash; `F_CPU` comes from
-  `SystemCoreClock` in the core.
+- **Zephyr SDK 1.0 migration:** the current framework depends on newlib, which SDK 1.0 removes.
+  Coordinate migration with the framework upstream rather than updating the toolchain independently.
+- **OpenOCD as a declared package:** retain the board-image installation until executable and configuration provenance can be managed together.
+  Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.
+  Preserve that detection behavior if packaging changes.
+- **Additional board manifest fields such as `build.core` or `build.f_cpu`:** add them only for a demonstrated requirement.
+  In particular, `F_CPU` comes from the core's `SystemCoreClock` and should not be duplicated as a fixed board value.
