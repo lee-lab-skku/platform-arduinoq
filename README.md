@@ -87,6 +87,15 @@ Build and upload it:
 pio run -t upload
 ```
 
+An upload prints `Writing resident firmware...` and/or `Writing sketch...` only when the framework starts writing that image.
+Images that already match are skipped without a writing notice.
+Normal OpenOCD output is hidden unless you pass `-v`; known verification mismatch diagnostics are suppressed in either mode, while other received errors remain visible.
+Failed uploads also show the available diagnostic output.
+
+Some framework flash scripts discard all logs during verification, including actual verification errors; these cannot be displayed even with `-v`.
+The platform preserves that behavior and the framework's decision to attempt writing after a failed verification.
+Writing notices indicate an attempt, not successful completion.
+
 ### `Serial` requires Arduino_RouterBridge
 
 `Serial` is a logical channel carried over the MCU&harr;MPU link, provided by the **Arduino_RouterBridge** library rather than by the core.

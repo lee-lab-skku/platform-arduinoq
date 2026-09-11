@@ -17,6 +17,26 @@ PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
 Modules that need framework paths in both modes must use `builder/arduinoq_common/arduino_zephyr_layout.py` without depending on framework initialization.
 `builder/upload/openocd.py` needs those paths even when uploading existing artifacts; upload-only remote sessions are the case that breaks if it relies on the adapter's exports.
 
+### Upload output must follow the framework's flash decisions
+
+Keep the framework's flash script authoritative for verification, writing, reset, and release.
+The upload observer wraps `flash` calls before that script runs and identifies images using `filename0` and `filename1`; do not branch on framework versions or infer writing from the number of verification errors.
+The writing notice must precede the actual `write_image` call and must not appear for an image the script skips.
+Preserve argument boundaries, caller scope, and the original command's return code and result.
+Native OpenOCD command groups dispatch by command name, so restore the original `flash` name during forwarding and reinstall the observer after both success and failure.
+Use syntax supported by OpenOCD's Jim Tcl interpreter, rather than assuming full Tcl compatibility.
+
+Treat the observer's log records as an internal protocol, including at OpenOCD debug level 3 where commands themselves are traced.
+Only suppress the known bank-verification failure diagnostic inside a completed, failed verification with no other reported error.
+That diagnostic is not a unique error code for content mismatch; retain it when accompanied by another error, outside verification, or when verification ends unexpectedly.
+Preserve the subprocess exit status and include available diagnostic context on failure.
+Keep normal log visibility controlled by `PIOVERBOSE` and preserve the ordering of user `upload_flags` after platform flags.
+
+Respect the framework's `log_output` policy.
+Some scripts discard verification logs and restore output before writing; this also discards real verification errors, even in verbose mode.
+Do not override that policy or change the framework's catch-and-write behavior as part of output filtering.
+The user-facing limitation is documented in [README.md](README.md).
+
 ### Shared helpers must remain independent of SCons
 
 Both `builder/`, running inside SCons, and `host/`, running in PlatformIO's own process, import `arduinoq_common`.

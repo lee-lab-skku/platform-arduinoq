@@ -21,9 +21,9 @@
 # sees that export. This module still never walks the framework package's
 # "variants" directory itself; it asks the resolver.
 
-from os.path import isfile
+from os.path import isfile, join
 
-from SCons.Script import AlwaysBuild, Import
+from SCons.Script import ARGUMENTS, AlwaysBuild, Import
 
 from arduinoq_common import openocd_layout
 from arduinoq_common.arduino_zephyr_layout import resolve as resolve_layout
@@ -107,7 +107,15 @@ def _configure_upload_command():
     # this script runs. Putting ours first leaves the user's flags last,
     # which is where "extra flags" belong and what OpenOCD needs for a
     # repeated option such as -d to take effect.
-    env.Append(UPLOADCMD='"%s" $UPLOAD_FLAGS' % openocd.binary)
+    verbose = bool(int(ARGUMENTS.get("PIOVERBOSE", 0)))
+    upload_dir = join(platform.get_dir(), "builder", "upload")
+    env.Append(
+        UPLOADCMD='"$PYTHONEXE" "%s" %s-- "%s" $UPLOAD_FLAGS' % (
+            join(upload_dir, "openocd_output.py"),
+            "--verbose " if verbose else "",
+            openocd.binary,
+        )
+    )
     env.Prepend(
         UPLOAD_FLAGS=openocd_layout.base_arguments(
             openocd,
@@ -115,7 +123,8 @@ def _configure_upload_command():
                 "set filename0 {%s}" % resident_elf,
                 "set filename1 {%s}" % "${SOURCES[0]}",
             ),
-        ) + ["-f", flash_config_path]
+            quiet=not verbose,
+        ) + ["-f", join(upload_dir, "openocd_upload.tcl"), "-f", flash_config_path]
     )
 
 # Every path that can fail is behind this guard, so that merely loading the
