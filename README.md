@@ -46,7 +46,7 @@ Windows and macOS workstations require `--force-remote` because this platform's 
 pio pkg install --global --platform https://github.com/lee-lab-skku/platform-arduinoq.git
 ```
 
-This command installs the development version by cloning this repository.
+This command installs the latest commit of the dev-platform by cloning this repository.
 To use a versioned release from the PlatformIO registry, follow [Quick start](#quick-start).
 
 Packages are resolved from GitHub release assets.
