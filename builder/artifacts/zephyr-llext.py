@@ -15,7 +15,11 @@ from os.path import isfile, join
 
 from SCons.Script import AlwaysBuild, Builder, Import, Return
 
+from arduinoq_common.sketch_size import check_sketch_size
+
 Import("env platform board build_mode")
+
+env.AddMethod(check_sketch_size, "CheckSketchSize")
 
 env.Replace(STRIP="arm-zephyr-eabi-strip")
 
@@ -291,7 +295,7 @@ else:
         env.Alias(
             "checkprogsize",
             sketch_elf,
-            env.VerboseAction(env.CheckUploadSize, "Checking size $SOURCE"),
+            env.VerboseAction(env.CheckSketchSize, "Checking size $SOURCE"),
         )
     )
     env.Depends(checkprogsize_target, sketch_artifact)
@@ -370,10 +374,7 @@ if not build_mode.nobuild:
 
     size_target = env.Alias(
         "size", sketch_artifact,
-        env.VerboseAction(
-            ' '.join('"%s"' % arg for arg in env.get("SIZECHECKCMD")),
-            "Calculating size $SOURCE"
-        )
+        env.VerboseAction(env.CheckSketchSize, "Calculating size $SOURCE")
     )
     AlwaysBuild(size_target)
 

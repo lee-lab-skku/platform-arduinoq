@@ -101,12 +101,13 @@ PlatformIO resolves its RPCLite and MsgPack dependencies automatically.
 | --- | --- |
 | *(default)* | Build and pack the sketch, then report size |
 | `upload` | Build, pack, and flash |
-| `checklink` | Verify the sketch links and fits, as a static build |
+| `checklink` | Check symbol resolution with a temporary static link |
 | `size` | Report flash and LLEXT heap usage |
 | `nobuild` | Use artifacts from a previous build without rebuilding |
 
 `checklink` runs as part of every build and can also be invoked on its own.
-It checks symbol resolution and memory limits using a temporary static link, because the relocatable upload artifact alone does not establish whether the sketch links and fits.
+It checks symbol resolution using a temporary static link, because the relocatable upload artifact can retain unresolved symbols.
+See [Board resources](#board-resources) for the distinction between reported hardware capacity and sketch allocations.
 
 ## Configuration
 
@@ -214,15 +215,23 @@ Check its status when uploads, resets, or serial communication fail unexpectedly
 
 ## Board resources
 
-Currently `uno_q` only &mdash; STM32U585, Cortex-M33 with a hardware single-precision FPU:
+The UNO Q's STM32U585 MCU has a Cortex-M33 core with a single-precision FPU and a nominal clock of 160 MHz.
+The board metadata shows the chip's nominal capacities, while the resident firmware allocates smaller regions to sketches:
 
-| Resource | Size |
-| --- | --- |
-| Sketch flash (`user_sketch` partition) | 768 KiB |
-| LLEXT heap | 256 KiB |
+| Resource | Nominal MCU capacity | Sketch allocation |
+| --- | --- | --- |
+| Flash | 2 MiB (2,097,152 bytes) | 768 KiB `user_sketch` partition |
+| SRAM | 786 KiB (804,864 bytes) | 256 KiB LLEXT heap |
 
-These are the sketch limits reported by `checklink` and the size check.
-They represent allocations within the resident firmware layout, rather than the chip's total flash or RAM.
+The [STM32U585 specifications](https://www.st.com/en/microcontrollers-microprocessors/stm32u585ai.html) include 2 KiB of backup SRAM in the nominal SRAM total, with ECC disabled.
+These figures describe MCU memory, not the MPU's Linux RAM or eMMC storage.
+
+A sketch is loaded into resident firmware, so the full chip capacity is not available to it.
+The size tool reports the packed sketch's flash usage and its LLEXT heap footprint.
+Both the build summary and `pio run -t size` compare these figures with the sketch allocations above, while board listings show nominal MCU capacities.
+Exceeding the sketch flash allocation fails the size check; exceeding the LLEXT RAM allocation produces a warning.
+The RAM figure is an ELF-based estimate of LLEXT usage, not a measurement of peak runtime memory use.
+`checklink` checks symbol resolution separately and does not enforce these allocations.
 
 ## Known issues
 

@@ -103,6 +103,26 @@ When changing resolution, verify:
 - Repeated access to package metadata.
 - Package lookup without a project environment, including update and removal paths.
 
+## Board metadata and sketch capacity
+
+The board manifest describes the MCU's nominal hardware specifications for PlatformIO board listings and hardware summaries.
+Keep `build.mcu`, `build.f_cpu`, `upload.maximum_ram_size`, and `upload.maximum_size` consistent with those specifications.
+These describe the MCU, not the MPU's Linux memory or storage.
+The clock metadata does not configure the resident firmware's clock or replace the core's `SystemCoreClock`-based `F_CPU`.
+
+Keep the resident firmware's sketch allocations in `upload.maximum_sketch_size` and `upload.maximum_sketch_ram_size`, in bytes.
+Update these only when the framework's `user_sketch` partition or LLEXT heap allocation changes; nominal chip capacity does not determine the sketch budget.
+
+Core's `CheckUploadSize()` reads `upload.maximum_size` and `upload.maximum_ram_size` directly from `BoardConfig()`.
+The artifact module routes both its post-packing check and the `size` target through `CheckSketchSize`, which supplies a private board configuration with the sketch limits to Core's checker.
+A SCons environment clone alone is insufficient because its normal board lookup still returns the shared platform configuration.
+Override that lookup on the checking environment only, so board listings, hardware summaries, and other build actions retain nominal metadata even after a check fails.
+
+Keep `zephyr-check-size` responsible for the numerator: packed sketch image size and LLEXT heap usage.
+Reuse Core's formatting and flash-error/RAM-warning behavior with the sketch limits as the denominator.
+The static `checklink` pass uses the framework's linker scripts; the shipped `memory-check.ld` uses synthetic memory regions and is not an enforcement of the sketch partition or LLEXT heap capacity.
+Keep the user-facing distinction in [Board resources](README.md#board-resources).
+
 ## Board integration constraints
 
 The board environment used by this platform boots the MCU through System Memory ROM.
