@@ -12,7 +12,7 @@ import tempfile
 
 MARKER = "__ARDUINOQ_UPLOAD__"
 EVENT = re.compile(
-    r"^" + MARKER + r" (verify-begin|verify-end|write) (resident|sketch)(?: (\d+))?$"
+    r"^" + MARKER + r" (verify-begin|verify-end|write) (resident|sketch)(?: (-?\d+))?$"
 )
 LOG_LINE = re.compile(
     r"^(Error|Warn|Info|Debug|User)\s*:\s*"
@@ -77,13 +77,17 @@ class UploadOutput:
     def finish_verification(self, code=None):
         # Only a complete, failed verification with no other error is the
         # expected rewrite diagnostic. Incomplete/unknown sequences stay visible.
+        # OpenOCD can propagate negative native error codes through Jim catch
+        # instead of mapping them to Tcl's JIM_ERR (1). Positive Tcl control
+        # codes (return/break/continue) are not verification failures.
+        failed = code is not None and (int(code) < 0 or int(code) == 1)
         other_error = any(
             not VERIFY_FAILURE.fullmatch(classify(line)[1])
             and is_error(line)
             for line in self.verification
         )
         for line in self.verification:
-            if code == "1" and not other_error and VERIFY_FAILURE.fullmatch(classify(line)[1]):
+            if failed and not other_error and VERIFY_FAILURE.fullmatch(classify(line)[1]):
                 continue
             self.diagnostic(line)
         self.verifying = None
@@ -126,7 +130,10 @@ class UploadOutput:
 
 
 def run(command, verbose=False, output=None):
-    output = sys.stdout if output is None else output
+    # PlatformIO's default `pio test` upload runs with silent=True: it drops
+    # stdout, including explicit progress and errors. Keep uploader diagnostics
+    # on stderr; our own filter still controls normal log verbosity.
+    output = sys.stderr if output is None else output
     with tempfile.SpooledTemporaryFile(mode="w+t", max_size=1024 * 1024) as transcript:
         filtered = UploadOutput(verbose, output, transcript)
         try:

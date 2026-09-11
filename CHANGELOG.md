@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UNO Q board metadata now identifies the STM32U585AI at 160 MHz and reports nominal MCU capacities of 786 KiB SRAM and 2 MiB flash.
 - Build size checks use separate sketch limits of 256 KiB LLEXT RAM and 768 KiB flash while preserving nominal board metadata.
   The `size` target now uses the same usage report and checks, with an error for flash overflow and a warning for RAM overflow.
+- OpenOCD uploads report resident and sketch write attempts in both `pio run` and `pio test`, while normal tool logs require verbose output and expected verification mismatch diagnostics are suppressed.
+  Other received errors and failure diagnostics remain visible, including during silent uploads.
+  Framework scripts retain control of verification and writing; logs discarded by the framework cannot be recovered.
 - Clarified the README's platform scope and OpenOCD requirements, and reorganized user and contributor guidance.
 
 ## [1.0.0-rc.3] &mdash; 2026-09-05

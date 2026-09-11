@@ -91,6 +91,7 @@ An upload prints `Writing resident firmware...` and/or `Writing sketch...` only 
 Images that already match are skipped without a writing notice.
 Normal OpenOCD output is hidden unless you pass `-v`; known verification mismatch diagnostics are suppressed in either mode, while other received errors remain visible.
 Failed uploads also show the available diagnostic output.
+Writing notices and received errors also remain visible during a default `pio test`; use `pio test -vvv` for verbose build and upload output.
 
 Some framework flash scripts discard all logs during verification, including actual verification errors; these cannot be displayed even with `-v`.
 The platform preserves that behavior and the framework's decision to attempt writing after a failed verification.

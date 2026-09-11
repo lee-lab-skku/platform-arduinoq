@@ -27,10 +27,14 @@ Native OpenOCD command groups dispatch by command name, so restore the original 
 Use syntax supported by OpenOCD's Jim Tcl interpreter, rather than assuming full Tcl compatibility.
 
 Treat the observer's log records as an internal protocol, including at OpenOCD debug level 3 where commands themselves are traced.
+Accept signed verification return codes: some OpenOCD builds propagate negative native errors through Jim Tcl's `catch`, while others return Tcl's error code `1`.
+Preserve those codes in the observer and interpret them in the output filter without checking the OpenOCD or framework version.
 Only suppress the known bank-verification failure diagnostic inside a completed, failed verification with no other reported error.
 That diagnostic is not a unique error code for content mismatch; retain it when accompanied by another error, outside verification, or when verification ends unexpectedly.
 Preserve the subprocess exit status and include available diagnostic context on failure.
 Keep normal log visibility controlled by `PIOVERBOSE` and preserve the ordering of user `upload_flags` after platform flags.
+Send the filtered uploader output to stderr: PlatformIO invokes uploads silently during a default `pio test`, which discards stdout even when it contains explicit writing notices or errors.
+Keep normal logs gated by verbosity before forwarding them to stderr.
 
 Respect the framework's `log_output` policy.
 Some scripts discard verification logs and restore output before writing; this also discards real verification errors, even in verbose mode.
