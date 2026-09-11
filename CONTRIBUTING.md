@@ -125,5 +125,3 @@ Revisit this only with evidence that the protocol or parser behavior has changed
 - **OpenOCD as a declared package:** retain the board-image installation until executable and configuration provenance can be managed together.
   Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.
   Preserve that detection behavior if packaging changes.
-- **Additional board manifest fields such as `build.core` or `build.f_cpu`:** add them only for a demonstrated requirement.
-  In particular, `F_CPU` comes from the core's `SystemCoreClock` and should not be duplicated as a fixed board value.

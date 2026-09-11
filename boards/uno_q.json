@@ -1,5 +1,7 @@
 {
   "build": {
+    "mcu": "stm32u585ai",
+    "f_cpu": "160000000L",
     "machine_flags": [
       "-mcpu=cortex-m33",
       "-mthumb",
