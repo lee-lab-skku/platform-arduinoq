@@ -104,10 +104,46 @@ PlatformIO resolves its RPCLite and MsgPack dependencies automatically.
 | `checklink` | Check symbol resolution with a temporary static link |
 | `size` | Report flash and LLEXT heap usage |
 | `nobuild` | Use artifacts from a previous build without rebuilding |
+| `reset` | Reset the MCU and let it run, without building |
+| `halt` | Reset the MCU and hold it halted, without building |
+| `release` | Release a sketch waiting in the `app` startup loader, without building |
 
 `checklink` runs as part of every build and can also be invoked on its own.
 It checks symbol resolution using a temporary static link, because the relocatable upload artifact can retain unresolved symbols.
 See [Board resources](#board-resources) for the distinction between reported hardware capacity and sketch allocations.
+
+### Board control without a build
+
+On the MPU, select the project's environment and run one operation:
+
+```console
+pio run -e uno_q -t reset
+pio run -e uno_q -t halt
+pio run -e uno_q -t release
+```
+
+These targets do not compile, link, pack, check size, or upload.
+They require neither sketch source nor previous build artifacts, and do not require `-t nobuild`.
+Explicit `-t nobuild` is accepted but has no additional effect.
+PlatformIO still initializes the environment and may install required packages.
+
+Each command accepts exactly one board control target.
+Combining it with another operation or a build, upload, or clean target is rejected before performing the requested work.
+Run separate commands when a sequence is needed.
+
+The selected environment supplies the board and `board_upload.openocd_dir`.
+The operations use the MPU's GPIO connection and require its OpenOCD installation and running `arduino-router.service`.
+`halt` resets before halting; it does not merely pause the current execution.
+`reset` does not release a sketch packed for `app` startup: use `release` afterward when you want it to leave the loader.
+
+From a workstation, force remote execution:
+
+```console
+pio remote run -r -e uno_q -t reset
+```
+
+Use the same form for `halt` and `release`.
+Without `-r` / `--force-remote`, PlatformIO Core performs a local build first, so the no-build guarantee does not apply to that remote workflow.
 
 ## Configuration
 

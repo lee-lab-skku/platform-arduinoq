@@ -9,6 +9,20 @@ File and function names belong here when they identify the participants in that 
 
 ## Cross-file contracts
 
+### Board control targets must bypass the build
+
+The `reset`, `halt`, and `release` targets are a platform-owned no-build contract, documented in [Board control](README.md#board-control-without-a-build).
+Register them without artifact dependencies and resolve the board controller only when their action executes.
+A control-only invocation must return before loading the artifact or upload modules; treating it as upload-only `nobuild` mode would still couple it to artifact paths.
+Preserve the existing host-side `BoardControl` semantics and project environment overrides.
+
+Keep target selection rules shared between Core package configuration and the SCons builder.
+Core consumes clean requests before the platform builder runs, so builder-only validation cannot reject a mixed control/clean request before cleaning.
+Accept one control target with optional `nobuild`, and reject other combinations before actions execute.
+Target discovery must not validate OpenOCD or operate hardware.
+The guarantee covers sketch build actions, not Core initialization, package installation, or user-provided extra scripts.
+Non-forced remote orchestration performs a local build outside this control-only path; document forced remote execution instead.
+
 ### Framework paths must be available without a build
 
 PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
