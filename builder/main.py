@@ -14,7 +14,7 @@ import sys
 from collections import namedtuple
 from os.path import join
 
-from SCons.Script import COMMAND_LINE_TARGETS, AlwaysBuild, Default, DefaultEnvironment
+from SCons.Script import COMMAND_LINE_TARGETS, AlwaysBuild, Default, DefaultEnvironment, Return
 
 env = DefaultEnvironment()
 platform = env.PioPlatform()
@@ -26,6 +26,34 @@ board = env.BoardConfig()
 BUILDER_DIR = join(platform.get_dir(), "builder")
 if BUILDER_DIR not in sys.path:
     sys.path.insert(0, BUILDER_DIR)
+
+# Register operations without constructing a controller or touching hardware.
+# Only the selected action resolves the installation and invokes OpenOCD.
+from arduinoq_common.board_targets import TARGETS, control_target
+
+
+def board_action(operation):
+    def execute(target, source, env):
+        control = env.PioPlatform().get_board_control(env.subst("$BOARD"))
+        getattr(control, operation)()
+    return execute
+
+
+operation = control_target(COMMAND_LINE_TARGETS)
+for name, description in TARGETS.items():
+    env.AddPlatformTarget(
+        name=name,
+        dependencies=[],
+        actions=[env.VerboseAction(board_action(name), description)],
+        title=name.capitalize(),
+        description=description,
+    )
+
+if operation:
+    # This is not upload-only mode: no prior artifact is required.
+    if "nobuild" in COMMAND_LINE_TARGETS:
+        env.Alias("nobuild")
+    Return()
 
 # ---------------------------------------------------------------------------
 # Common toolchain commands

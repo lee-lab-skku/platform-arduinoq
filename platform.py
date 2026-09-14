@@ -75,6 +75,18 @@ DEBUG_INIT_CMDS = (
 )
 
 class ArduinoqPlatform(PlatformBase):
+    def configure_default_packages(self, options, targets):
+        # Core consumes clean targets before entering the platform builder.
+        # Validate here so a mixed request cannot clean or operate the board.
+        selection = self._load_module(
+            "builder", "arduinoq_common", "board_targets.py"
+        )
+        try:
+            selection.control_target(targets)
+        except ValueError as exc:
+            raise UserSideException(str(exc)) from exc
+        return super().configure_default_packages(options, targets)
+
     def is_embedded(self):
         # PlatformBase derives this from the presence of a package declared
         # with type "uploader", which PlatformIO then force-installs for any
