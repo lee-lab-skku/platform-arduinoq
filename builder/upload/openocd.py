@@ -108,10 +108,10 @@ def _configure_upload_command():
     # which is where "extra flags" belong and what OpenOCD needs for a
     # repeated option such as -d to take effect.
     verbose = bool(int(ARGUMENTS.get("PIOVERBOSE", 0)))
-    upload_dir = join(platform.get_dir(), "builder", "upload")
+    common_dir = join(platform.get_dir(), "builder", "arduinoq_common")
     env.Append(
         UPLOADCMD='"$PYTHONEXE" "%s" %s-- "%s" $UPLOAD_FLAGS' % (
-            join(upload_dir, "openocd_output.py"),
+            join(common_dir, "openocd_output.py"),
             "--verbose " if verbose else "",
             openocd.binary,
         )
@@ -124,7 +124,7 @@ def _configure_upload_command():
                 "set filename1 {%s}" % "${SOURCES[0]}",
             ),
             quiet=not verbose,
-        ) + ["-f", join(upload_dir, "openocd_upload.tcl"), "-f", flash_config_path]
+        ) + ["-f", join(common_dir, "openocd_events.tcl"), "-f", flash_config_path]
     )
 
 # Every path that can fail is behind this guard, so that merely loading the

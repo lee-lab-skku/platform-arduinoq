@@ -15,7 +15,6 @@
 # it only works when it runs on the MPU itself. On a workstation it fails
 # with the same explanation the upload backend gives.
 
-import subprocess
 import sys
 from os.path import abspath, dirname, join
 
@@ -27,7 +26,7 @@ BUILDER_DIR = join(dirname(dirname(abspath(__file__))), "builder")
 if BUILDER_DIR not in sys.path:
     sys.path.insert(0, BUILDER_DIR)
 
-from arduinoq_common import openocd_layout  # noqa: E402
+from arduinoq_common import openocd_layout, openocd_output  # noqa: E402
 
 # Commands for a long-running GDB server, matching the invocation the MPU's
 # own debug helper uses. "reset_config" has to precede "init", which is why
@@ -141,32 +140,27 @@ class BoardControl:
         return self.arguments(*(setup + list(commands)), quiet=False)
 
     def openocd(self, *commands, **kwargs):
-        """Run OpenOCD against this board with the given -c commands."""
+        """Run commands with concise events and failure diagnostics; quiet=False adds raw logs."""
         self.ensure_available()
-        argv = [self.openocd_binary] + self.arguments(*commands)
-
         quiet = kwargs.get("quiet", True)
-        try:
-            subprocess.check_call(
-                argv,
-                stdout=subprocess.DEVNULL if quiet else None,
-                stderr=subprocess.STDOUT,
-            )
-        except OSError as exc:
-            raise BoardControlError(
-                "could not run %s: %s" % (self.openocd_binary, exc)
-            ) from exc
-        except subprocess.CalledProcessError as exc:
+        argv = [self.openocd_binary] + self.arguments(quiet=quiet)
+        # Load the observer before init/reset, without importing any build or
+        # framework scripts. Debug servers keep their unfiltered startup path.
+        argv += ["-f", openocd_output.OBSERVER_SCRIPT]
+        for command in commands:
+            argv += ["-c", command]
+        code = openocd_output.run(argv, verbose=not quiet)
+        if code:
             raise BoardControlError(
                 "OpenOCD failed with exit code %d while running: %s"
-                % (exc.returncode, " ".join(commands))
-            ) from exc
+                % (code, " ".join(commands))
+            )
 
-    def reset(self):
+    def reset(self, quiet=True):
         """Reset the target and let it run."""
-        self.openocd("init", "reset run", "shutdown")
+        self.openocd("init", "reset run", "shutdown", quiet=quiet)
 
-    def release(self):
+    def release(self, quiet=True):
         """Let a sketch packed for "app" startup leave the loader.
 
         Harmless for a sketch packed any other way: nothing reads the word.
@@ -176,8 +170,9 @@ class BoardControl:
             "sleep %d" % WAIT_FOR_APP_SETTLE_MS,
             "mww 0x%08X 0x%08X" % (WAIT_FOR_APP_ADDRESS, WAIT_FOR_APP_MAGIC),
             "shutdown",
+            quiet=quiet,
         )
 
-    def halt(self):
+    def halt(self, quiet=True):
         """Reset the target and hold it halted."""
-        self.openocd("init", "reset halt", "shutdown")
+        self.openocd("init", "reset halt", "shutdown", quiet=quiet)

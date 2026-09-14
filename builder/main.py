@@ -14,7 +14,7 @@ import sys
 from collections import namedtuple
 from os.path import join
 
-from SCons.Script import COMMAND_LINE_TARGETS, AlwaysBuild, Default, DefaultEnvironment, Return
+from SCons.Script import ARGUMENTS, COMMAND_LINE_TARGETS, AlwaysBuild, Default, DefaultEnvironment, Return
 
 env = DefaultEnvironment()
 platform = env.PioPlatform()
@@ -35,7 +35,7 @@ from arduinoq_common.board_targets import TARGETS, control_target
 def board_action(operation):
     def execute(target, source, env):
         control = env.PioPlatform().get_board_control(env.subst("$BOARD"))
-        getattr(control, operation)()
+        getattr(control, operation)(quiet=not bool(int(ARGUMENTS.get("PIOVERBOSE", 0))))
     return execute
 
 

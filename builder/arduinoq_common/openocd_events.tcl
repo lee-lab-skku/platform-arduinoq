@@ -23,9 +23,9 @@ proc flash {args} {
 	}
 	if {$part ne ""} {
 		if {$operation eq "verify_image"} {
-			echo "__ARDUINOQ_UPLOAD__ verify-begin $part"
+			echo "__ARDUINOQ_OPENOCD__ verify-begin $part"
 		} else {
-			echo "__ARDUINOQ_UPLOAD__ write $part"
+			echo "__ARDUINOQ_OPENOCD__ write $part"
 		}
 	}
 
@@ -40,8 +40,41 @@ proc flash {args} {
 	rename arduinoq_flash_observer flash
 
 	if {$part ne "" && $operation eq "verify_image"} {
-		echo "__ARDUINOQ_UPLOAD__ verify-end $part $code"
+		echo "__ARDUINOQ_OPENOCD__ verify-end $part $code"
 	}
 	# Jim Tcl does not support Tcl's return -options form.
 	return -code $code $result
 }
+
+# OpenOCD registers the native reset command during init, so an observer
+# loaded before the framework script cannot wrap reset immediately.
+# Install after a successful init (or now if init has already run), without
+# changing the framework's initialization order or replacing target events.
+proc arduinoq_observe_reset {} {
+	if {[llength [info commands arduinoq_native_reset]] != 0 || [llength [info commands reset]] == 0} {return}
+	rename reset arduinoq_native_reset
+	proc reset {args} {
+		set mode [lindex $args 0]
+		if {[llength $args] == 0} {set mode run}
+		echo "__ARDUINOQ_OPENOCD__ reset-begin $mode"
+		rename reset arduinoq_reset_observer
+		rename arduinoq_native_reset reset
+		set code [catch {uplevel 1 [linsert $args 0 reset]} result]
+		rename reset arduinoq_native_reset
+		rename arduinoq_reset_observer reset
+		echo "__ARDUINOQ_OPENOCD__ reset-end $mode $code"
+		return -code $code $result
+	}
+}
+
+rename init arduinoq_native_init
+proc init {args} {
+	rename init arduinoq_init_observer
+	rename arduinoq_native_init init
+	set code [catch {uplevel 1 [linsert $args 0 init]} result]
+	rename init arduinoq_native_init
+	rename arduinoq_init_observer init
+	if {$code == 0} {arduinoq_observe_reset}
+	return -code $code $result
+}
+arduinoq_observe_reset

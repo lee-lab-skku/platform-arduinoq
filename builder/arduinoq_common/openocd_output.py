@@ -1,18 +1,23 @@
 # SPDX-FileCopyrightText: 2026 Advanced Additive Manufacturing Systems Laboratory, Sungkyunkwan University
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run OpenOCD with upload-specific output handling; independent of SCons."""
+"""Run OpenOCD with shared upload and board-control output handling; independent of SCons."""
 
 import argparse
 import re
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
 
 
-MARKER = "__ARDUINOQ_UPLOAD__"
+OBSERVER_SCRIPT = str(Path(__file__).with_name("openocd_events.tcl"))
+MARKER = "__ARDUINOQ_OPENOCD__"
 EVENT = re.compile(
     r"^" + MARKER + r" (verify-begin|verify-end|write) (resident|sketch)(?: (-?\d+))?$"
+)
+RESET_EVENT = re.compile(
+    r"^" + MARKER + r" (reset-begin|reset-end) (run|halt|init)(?: (-?\d+))?$"
 )
 LOG_LINE = re.compile(
     r"^(Error|Warn|Info|Debug|User)\s*:\s*"
@@ -47,11 +52,12 @@ def is_error(line):
     return level == "error" or (level in ("", "user") and bool(ERROR_TEXT.search(message)))
 
 
-class UploadOutput:
+class OpenOcdOutput:
     def __init__(self, verbose, output, transcript):
         self.verbose = verbose
         self.output = output
         self.transcript = transcript
+        self.resetting = None
         self.verifying = None
         self.verification = []
         self.error_context = False
@@ -95,6 +101,20 @@ class UploadOutput:
 
     def feed(self, line):
         level, message = classify(line)
+        reset_event = RESET_EVENT.fullmatch(message) if level in ("", "user") else None
+        if reset_event:
+            action, mode, code = reset_event.groups()
+            self.finish_verification()
+            if action == "reset-begin":
+                self.resetting = mode
+            else:
+                # Only a matched, successful native return establishes command
+                # completion; a process exit or startup banner does not.
+                if self.resetting == mode and code == "0":
+                    self.emit("MCU reset command completed (%s).\n" % mode)
+                self.resetting = None
+            self.error_context = False
+            return
         event = EVENT.fullmatch(message) if level in ("", "user") else None
         if event:
             action, part, code = event.groups()
@@ -135,7 +155,7 @@ def run(command, verbose=False, output=None):
     # on stderr; our own filter still controls normal log verbosity.
     output = sys.stderr if output is None else output
     with tempfile.SpooledTemporaryFile(mode="w+t", max_size=1024 * 1024) as transcript:
-        filtered = UploadOutput(verbose, output, transcript)
+        filtered = OpenOcdOutput(verbose, output, transcript)
         try:
             with subprocess.Popen(
                 command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

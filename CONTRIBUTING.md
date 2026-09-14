@@ -31,7 +31,7 @@ PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
 Modules that need framework paths in both modes must use `builder/arduinoq_common/arduino_zephyr_layout.py` without depending on framework initialization.
 `builder/upload/openocd.py` needs those paths even when uploading existing artifacts; upload-only remote sessions are the case that breaks if it relies on the adapter's exports.
 
-### Upload output must follow the framework's flash decisions
+### OpenOCD output must follow the commands actually executed
 
 Keep the framework's flash script authoritative for verification, writing, reset, and release.
 The upload observer wraps `flash` calls before that script runs and identifies images using `filename0` and `filename1`; do not branch on framework versions or infer writing from the number of verification errors.
@@ -40,6 +40,14 @@ Preserve argument boundaries, caller scope, and the original command's return co
 Native OpenOCD command groups dispatch by command name, so restore the original `flash` name during forwarding and reinstall the observer after both success and failure.
 Use syntax supported by OpenOCD's Jim Tcl interpreter, rather than assuming full Tcl compatibility.
 
+Keep output filtering and Tcl observation in the SCons-independent `arduinoq_common` package so uploads and host board operations share their diagnostics without importing the upload builder.
+The observer wraps `reset` as well as `flash`; OpenOCD registers the native reset command during target initialization, so install that wrapper after a successful `init`, or immediately if the command already exists.
+Forward `init` without changing its ordering or outcome, and do not replace target reset events.
+Report reset completion only for a matching begin/end pair with return code zero, preserving `run`, `halt`, and `init` modes.
+This is command completion evidence, not sketch readiness; an interrupted or failed command must not produce a completion notice.
+Do not infer a reset from GDB startup or OpenOCD shutdown messages, and do not synthesize one for the release write.
+Keep debugger server arguments unobserved and verbose because PlatformIO uses their output to detect readiness.
+
 Treat the observer's log records as an internal protocol, including at OpenOCD debug level 3 where commands themselves are traced.
 Accept signed verification return codes: some OpenOCD builds propagate negative native errors through Jim Tcl's `catch`, while others return Tcl's error code `1`.
 Preserve those codes in the observer and interpret them in the output filter without checking the OpenOCD or framework version.
@@ -47,7 +55,7 @@ Only suppress the known bank-verification failure diagnostic inside a completed,
 That diagnostic is not a unique error code for content mismatch; retain it when accompanied by another error, outside verification, or when verification ends unexpectedly.
 Preserve the subprocess exit status and include available diagnostic context on failure.
 Keep normal log visibility controlled by `PIOVERBOSE` and preserve the ordering of user `upload_flags` after platform flags.
-Send the filtered uploader output to stderr: PlatformIO invokes uploads silently during a default `pio test`, which discards stdout even when it contains explicit writing notices or errors.
+Send shared filtered output to stderr: PlatformIO invokes uploads silently during a default `pio test`, which discards stdout even when it contains explicit writing notices or errors.
 Keep normal logs gated by verbosity before forwarding them to stderr.
 
 Respect the framework's `log_output` policy.

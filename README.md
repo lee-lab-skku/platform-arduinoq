@@ -89,6 +89,8 @@ pio run -t upload
 
 An upload prints `Writing resident firmware...` and/or `Writing sketch...` only when the framework starts writing that image.
 Images that already match are skipped without a writing notice.
+Uploads also report `MCU reset command completed (halt).` or `(run).` when the framework's corresponding reset command returns successfully.
+This confirms command completion, not that the sketch has booted or its communication service is ready.
 Normal OpenOCD output is hidden unless you pass `-v`; known verification mismatch diagnostics are suppressed in either mode, while other received errors remain visible.
 Failed uploads also show the available diagnostic output.
 Writing notices and received errors also remain visible during a default `pio test`; use `pio test -vvv` for verbose build and upload output.
@@ -140,6 +142,10 @@ PlatformIO still initializes the environment and may install required packages.
 Each command accepts exactly one board control target.
 Combining it with another operation or a build, upload, or clean target is rejected before performing the requested work.
 Run separate commands when a sequence is needed.
+
+Board control uses the same OpenOCD output handling as uploads: successful reset commands produce a concise completion notice, received errors remain visible, and failures include available diagnostic context.
+Use `pio run -v -e uno_q -t reset` (or `halt` / `release`) to include normal OpenOCD logs.
+`release` does not perform a reset and does not print a reset completion notice.
 
 The selected environment supplies the board and `board_upload.openocd_dir`.
 The operations use the MPU's GPIO connection and require its OpenOCD installation and running `arduino-router.service`.

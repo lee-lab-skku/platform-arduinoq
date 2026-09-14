@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- No-build `reset`, `halt`, and `release` targets for UNO Q board control through the selected project environment.
+
 ### Changed
 
 - UNO Q board metadata now identifies the STM32U585AI at 160 MHz and reports nominal MCU capacities of 786 KiB SRAM and 2 MiB flash.
@@ -17,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenOCD uploads report resident and sketch write attempts in both `pio run` and `pio test`, while normal tool logs require verbose output and expected verification mismatch diagnostics are suppressed.
   Other received errors and failure diagnostics remain visible, including during silent uploads.
   Framework scripts retain control of verification and writing; logs discarded by the framework cannot be recovered.
+- Uploads and host board control share OpenOCD diagnostics and report successful reset command completion with its mode.
+  Board control retains received errors and failure context instead of discarding the tool output, and its CLI targets support verbose logs with `-v`.
 - Clarified the README's platform scope and OpenOCD requirements, and reorganized user and contributor guidance.
 
 ## [1.0.0-rc.3] &mdash; 2026-09-05
