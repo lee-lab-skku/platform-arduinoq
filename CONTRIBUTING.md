@@ -37,12 +37,11 @@ Keep the framework's flash script authoritative for verification, writing, reset
 The upload observer wraps `flash` calls before that script runs and identifies images using `filename0` and `filename1`; do not branch on framework versions or infer writing from the number of verification errors.
 The writing notice must precede the actual `write_image` call and must not appear for an image the script skips.
 Preserve argument boundaries, caller scope, and the original command's return code and result.
-Native OpenOCD command groups dispatch by command name, so restore the original `flash` name during forwarding and reinstall the observer after both success and failure.
 Use syntax supported by OpenOCD's Jim Tcl interpreter, rather than assuming full Tcl compatibility.
+The forwarding and wrapper installation constraints are documented beside the implementation in `builder/arduinoq_common/openocd_events.tcl`.
 
 Keep output filtering and Tcl observation in the SCons-independent `arduinoq_common` package so uploads and host board operations share their diagnostics without importing the upload builder.
-The observer wraps `reset` as well as `flash`; OpenOCD registers the native reset command during target initialization, so install that wrapper after a successful `init`, or immediately if the command already exists.
-Forward `init` without changing its ordering or outcome, and do not replace target reset events.
+Observe reset commands without changing target initialization order or outcome, and do not replace target reset events.
 Report reset completion only for a matching begin/end pair with return code zero, preserving `run`, `halt`, and `init` modes.
 This is command completion evidence, not sketch readiness; an interrupted or failed command must not produce a completion notice.
 Do not infer a reset from GDB startup or OpenOCD shutdown messages, and do not synthesize one for the release write.
@@ -160,9 +159,8 @@ Keep the resident firmware's sketch allocations in `upload.maximum_sketch_size` 
 Update these only when the framework's `user_sketch` partition or LLEXT heap allocation changes; nominal chip capacity does not determine the sketch budget.
 
 Core's `CheckUploadSize()` reads `upload.maximum_size` and `upload.maximum_ram_size` directly from `BoardConfig()`.
-The artifact module routes both its post-packing check and the `size` target through `CheckSketchSize`, which supplies a private board configuration with the sketch limits to Core's checker.
+Both the post-packing check and the `size` target must supply sketch allocations without modifying the shared board metadata, including when a check fails.
 A SCons environment clone alone is insufficient because its normal board lookup still returns the shared platform configuration.
-Override that lookup on the checking environment only, so board listings, hardware summaries, and other build actions retain nominal metadata even after a check fails.
 
 Keep `zephyr-check-size` responsible for the numerator: packed sketch image size and LLEXT heap usage.
 Reuse Core's formatting and flash-error/RAM-warning behavior with the sketch limits as the denominator.

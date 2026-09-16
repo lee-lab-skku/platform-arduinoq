@@ -42,6 +42,10 @@ Windows and macOS workstations require `--force-remote` because this platform's 
 
 ## Installation
 
+This README describes the platform at this revision.
+The [Quick start](#quick-start) example pins a registry release, which may differ from the implementation documented here.
+When using a released version, refer to the README included with that version.
+
 ```console
 pio pkg install --global --platform https://github.com/lee-lab-skku/platform-arduinoq.git
 ```
@@ -91,7 +95,10 @@ An upload prints `Writing resident firmware...` and/or `Writing sketch...` only 
 Images that already match are skipped without a writing notice.
 Uploads also report `MCU reset command completed (halt).` or `(run).` when the framework's corresponding reset command returns successfully.
 This confirms command completion, not that the sketch has booted or its communication service is ready.
-Normal OpenOCD output is hidden unless you pass `-v`; known verification mismatch diagnostics are suppressed in either mode, while other received errors remain visible.
+Normal OpenOCD output is hidden unless you pass `-v`.
+A specific bank-verification failure diagnostic is suppressed in either mode when verification completes unsuccessfully without another reported error.
+This diagnostic alone does not distinguish a content mismatch from other verification failures.
+Other received errors remain visible.
 Failed uploads also show the available diagnostic output.
 Writing notices and received errors also remain visible during a default `pio test`; use `pio test -vvv` for verbose build and upload output.
 
@@ -325,7 +332,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development requirements, architectur
 
 ## AI assistance
 
-The code and documentation were written with substantial AI assistance.
+The code and documentation were written with substantial AI assistance and have had no external review.
 This platform flashes and resets physical hardware; review changes and validate them on the intended board before relying on them.
 
 ## License
