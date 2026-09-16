@@ -1,11 +1,36 @@
 # Contributing
 
-This document covers contracts and reasoning that span files or execution environments and do not have a natural home in a single code comment.
-It also records failed approaches whose causes would otherwise need to be rediscovered.
+This document covers development setup, change validation, and contracts that contributors must preserve across files or execution environments.
+It also records design reasoning and failed approaches whose causes would otherwise need to be rediscovered.
 For installation, project configuration, and board operation, see [README.md](README.md).
 
 Keep enough of each cross-file flow to explain where its assumptions hold and where they break.
 File and function names belong here when they identify the participants in that contract; details local to one implementation belong beside the code.
+
+## Using a development checkout
+
+Clone `platform-arduinoq` and create a separate sketch project using the [Quick start](README.md#quick-start).
+Replace its registry reference (`lee-lab-skku/arduinoq@<version>`) with the absolute path to your checkout, keeping the other project settings:
+
+```ini
+platform = symlink:///home/user/platform-arduinoq
+```
+
+Unlike the README's Git URL installation, this uses your working checkout directly, so subsequent invocations see edits without reinstalling the platform.
+Framework and tool packages remain separate dependencies.
+
+## Validation
+
+Use the execution environments described in [Where the build runs](README.md#where-the-build-runs).
+Validate hardware behavior on the MPU with the development checkout; a workstation build covers only the build side.
+For remote changes, check that both participating machines use the intended revision and exercise the affected [remote mode](README.md#remote-builds).
+
+Choose validation scope from the contracts below; the [package resolver](#resolution-without-a-project-environment) has its own checklist.
+For shared helpers, cover their callers across execution environments: OpenOCD changes can affect uploads, test-reader board operations, standalone control targets, and debugger startup.
+For artifact changes, cover both the normal build and upload-only paths, plus `size` when changing size reporting.
+
+Hardware scenarios require a suitable sketch or test project; see [Unit testing](README.md#unit-testing) for test-runner setup.
+Documentation-only changes need review of the affected claims, examples, and links.
 
 ## Cross-file contracts
 

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uploads and host board control share OpenOCD diagnostics and report successful reset command completion with its mode.
   Board control retains received errors and failure context instead of discarding the tool output, and its CLI targets support verbose logs with `-v`.
 - Clarified the README's platform scope and OpenOCD requirements, and reorganized user and contributor guidance.
+  Contributor guidance now includes development checkout setup and validation scope across build and board execution paths.
 
 ## [1.0.0-rc.3] &mdash; 2026-09-05
 
