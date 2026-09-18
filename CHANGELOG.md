@@ -12,19 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - No-build `reset`, `halt`, and `release` targets for UNO Q board control through the selected project environment.
+- Resident and sketch write-attempt notices for OpenOCD uploads in both `pio run` and `pio test`.
+- Successful reset command completion notices, including the reset mode, for uploads and host board control.
+- Verbose OpenOCD logs for board control CLI targets with `-v`.
 
 ### Changed
 
-- UNO Q board metadata now identifies the STM32U585AI at 160 MHz and reports nominal MCU capacities of 786 KiB SRAM and 2 MiB flash.
 - Build size checks use separate sketch limits of 256 KiB LLEXT RAM and 768 KiB flash while preserving nominal board metadata.
   The `size` target now uses the same usage report and checks, with an error for flash overflow and a warning for RAM overflow.
-- OpenOCD uploads report resident and sketch write attempts in both `pio run` and `pio test`, while normal tool logs require verbose output and expected verification mismatch diagnostics are suppressed.
-  Other received errors and failure diagnostics remain visible, including during silent uploads.
+- Uploads and host board control share OpenOCD diagnostics, with normal tool logs requiring verbose output and expected verification mismatch diagnostics suppressed.
   Framework scripts retain control of verification and writing; logs discarded by the framework cannot be recovered.
-- Uploads and host board control share OpenOCD diagnostics and report successful reset command completion with its mode.
-  Board control retains received errors and failure context instead of discarding the tool output, and its CLI targets support verbose logs with `-v`.
 - Clarified the README's platform scope and OpenOCD requirements, and reorganized user and contributor guidance.
   Contributor guidance now includes development checkout setup and validation scope across build and board execution paths.
+
+### Fixed
+
+- Corrected UNO Q board metadata to identify the STM32U585AI at 160 MHz and report nominal MCU capacities of 786 KiB SRAM and 2 MiB flash.
+- OpenOCD uploads preserve received errors and failure diagnostics, including during silent uploads in `pio test`.
+  Host board control also retains received errors and failure context instead of discarding the tool output.
 
 ## [1.0.0-rc.3] &mdash; 2026-09-05
 
