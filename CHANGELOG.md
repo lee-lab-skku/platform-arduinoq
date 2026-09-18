@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.4]
+
 ### Added
 
 - No-build `reset`, `halt`, and `release` targets for UNO Q board control through the selected project environment.
@@ -69,7 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_port`, defaulting to the RouterBridge monitor socket, since the board exposes no serial device for port discovery to find.
 - Independently packaged toolchain, framework, and helper tools (`toolchain-gccarmzephyreabi`, `framework-arduino-zephyr`, `tool-zephyrsketch`, `tool-genrodatald`, `tool-zephyrchecksize`), resolved for `linux_x86_64` and `linux_aarch64` hosts from a single set of pinned versions.
 
-[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.3...HEAD
+[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.4...HEAD
+[1.0.0-rc.4]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.3...v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/lee-lab-skku/platform-arduinoq/tree/v1.0.0-rc.1
