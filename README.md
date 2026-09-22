@@ -226,6 +226,10 @@ Without `-r`/`--force-remote`, the build runs on the *workstation* and only the 
 `pio remote run -t checklink -t upload` is supported.
 The link check runs during the build; the upload-only remote step does not repeat it.
 
+`pio remote device list` lists serial ports exposed by the MPU; it does not discover the UNO Q's MCU through this platform.
+MCU uploads use GPIO/OpenOCD, and test output uses the RouterBridge socket, so an MCU entry in the remote device list is not required for remote uploads or tests.
+Exposing the MCU as a remote device would require additional integration with the Remote Agent beyond the development platform itself.
+
 ## Unit testing
 
 Test output arrives over a socket rather than a serial port, and resetting the board for a test run goes through OpenOCD rather than a DTR/RTS line.
