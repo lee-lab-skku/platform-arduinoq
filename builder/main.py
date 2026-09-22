@@ -30,6 +30,21 @@ if BUILDER_DIR not in sys.path:
 # Register operations without constructing a controller or touching hardware.
 # Only the selected action resolves the installation and invokes OpenOCD.
 from arduinoq_common.board_targets import TARGETS, control_target
+from arduinoq_common.integration_metadata import enrich_metadata
+
+
+# Install before ProcessProgramDeps creates the project environment. SCons
+# clones this method onto that environment; keep Core's unbound callable so
+# its receiver is the project clone, not the global environment captured here.
+core_dump_integration_data = env.DumpIntegrationData.method
+
+
+def dump_integration_data(projenv, globalenv):
+    data = core_dump_integration_data(projenv, globalenv)
+    return enrich_metadata(data, projenv.subst("$PROJECT_DIR"))
+
+
+env.AddMethod(dump_integration_data, "DumpIntegrationData")
 
 
 def board_action(operation):

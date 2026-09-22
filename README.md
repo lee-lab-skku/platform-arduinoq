@@ -327,6 +327,21 @@ Running the test directly on the MPU is also a useful reference point.
 
 ## Limitations
 
+### Static analysis metadata
+
+`pio project metadata --json-output` expands the framework's compiler response files in `cc_flags` and `cxx_flags`, including their ordered standards, macro operations, and `-imacros` headers.
+It also exposes absolute Zephyr include paths and the final command-line definitions shared by C and C++.
+Language-specific definitions remain in the flags and produce a warning when the shared `defines` field cannot represent them.
+This only supplements metadata; compilation and linking still use the original response files.
+
+The checked PlatformIO Core 6.2.0 analysis adapters do not preserve all of this information.
+Cppcheck receives the include paths and common definitions but treats `-imacros` as ordinary forced includes; Zephyr preprocessing can still fail.
+Clang-Tidy receives the include paths and common definitions but omits the language flags, including configuration headers and target options.
+Core hides its `clang-diagnostic-error` messages unless `pio check -v` is used, and accepts Clang-Tidy exit code 1 as success.
+Consequently, `PASSED` does not prove that the sketch was parsed with its build configuration.
+
+### Platform support
+
 - **Only the dynamic (relocatable LLEXT) link mode is supported.**
 - **Arduino library compatibility is best-effort.**
   The `arduino` framework identifier allows discovery of Arduino libraries, but libraries that depend on AVR/SAM internals or conflict with Zephyr symbols may fail.

@@ -97,6 +97,31 @@ The platform-specific name `arduinoq_common` avoids the collisions a generic `co
 `platform.py` handles the related risk by loading helpers by path rather than exposing itself as a top-level `platform` module.
 Preserve these import boundaries when moving shared code.
 
+### Integration metadata must describe the build without changing it
+
+The framework response files remain the source of compiler settings.
+Supplement Core's `DumpIntegrationData` result through the platform environment's method, installed before project environments are cloned; retain the original method's project receiver.
+Do not modify installed Core files, globally patch its adapters, or change `CPPPATH`, `CPPDEFINES`, compilation, or linking to accommodate an analyzer.
+Keep response parsing in the SCons-independent shared helper.
+
+Expand response references at their original position, using the compiler working directory for nested relative references.
+Report unreadable files and active recursion cycles with their paths; repeated nonrecursive references are valid.
+Preserve argument boundaries, language differences, and option order, including later `-std` overrides.
+GCC searches explicit `-I` paths before `-iwithprefixbefore` paths, even when the prefix options occur earlier in the command.
+Concatenate each prefix with its suffix before resolving the path, retain nonexistent configured paths, and preserve Core's library and toolchain include groups.
+
+SCons places `CPPDEFINES` after the language/common flags in this platform's compile commands.
+Apply response-file `-D`/`-U` operations first, then Core's definitions, to compute the common final definitions.
+Retain those operations and the trailing Core definitions in each language's flags so replay preserves their precedence.
+Warn about definitions that the common C/C++ field cannot express.
+Keep `-imacros` and `-include` as options; copying configuration-header macros into `defines` loses their preprocessing context.
+
+Validate metadata changes in a separate sketch copy that selects the development checkout.
+Capture `pio run -t compiledb` before and after the change, normalize only relocated paths, and compare every command; also run a clean build, `checklink`, and `size`.
+Compare GCC `-E -dM`, `-E -v`, and `-M` results for the original and expanded settings to check final macros, include search order, and forced-header dependencies.
+Count expected framework settings from the installed response files rather than fixing package-specific counts in the implementation.
+Inspect both analysis adapters' actual input and parsing errors with `pio check -v`; their success labels are not a completeness check.
+
 ### Sketch startup is an artifact and host coordination contract
 
 `board_build.boot_mode` is written into the packed image by `zephyr-sketch-tool`; it is fixed at packing time, rather than selected during compilation or upload.
