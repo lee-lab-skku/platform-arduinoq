@@ -109,13 +109,45 @@ Some framework flash scripts discard all logs during verification, including act
 The platform preserves that behavior and the framework's decision to attempt writing after a failed verification.
 Writing notices indicate an attempt, not successful completion.
 
-### `Serial` requires Arduino_RouterBridge
+## Serial communication
 
 `Serial` is a logical channel carried over the MCU&harr;MPU link, provided by the **Arduino_RouterBridge** library rather than by the core.
 Add RouterBridge to `lib_deps` when using `Serial`, as shown above.
 PlatformIO resolves its RPCLite and MsgPack dependencies automatically.
 
 `Serial1` provides hardware UART access on `D0`/`D1`.
+
+### RouterBridge connection
+
+On the MPU, the RouterBridge monitor channel is exposed through a TCP socket rather than a USB serial port.
+This platform assumes `socket://localhost:7500` as the default endpoint.
+The actual endpoint may differ depending on the MPU image and its RouterBridge socket configuration; use the host and port configured on your MPU.
+`localhost` refers to the machine running the reader or monitor, so the default address is intended for execution on the MPU.
+The socket is not discovered by PlatformIO's serial-port scan.
+
+### Device monitor
+
+Run the monitor in an interactive terminal on the MPU, using the [RouterBridge connection](#routerbridge-connection).
+Unlike the platform's test reader, the general monitor requires an explicit endpoint.
+Add it to the project's environment in `platformio.ini`, adjusting the address if needed:
+
+```ini
+monitor_port = socket://localhost:7500
+```
+
+Then run:
+
+```console
+pio device monitor -e uno_q
+```
+
+Alternatively, supply the endpoint with `--port`.
+`test_port` does not supply a default for this command.
+
+Opening the monitor attaches to the current sketch without resetting or releasing it.
+For startup output from a sketch packed in `app` mode, run [reset](#board-control-without-a-build), open the monitor, then run `release` from a second MPU terminal.
+Changing the boot mode requires rebuilding and uploading the sketch; the ordinary `wait` mode does not hold execution until a monitor connects.
+Monitor DTR/RTS settings do not reset the MCU over this socket connection.
 
 ## Targets
 
@@ -208,8 +240,8 @@ It must have Linux GPIO support and `openocd_gpiod.cfg` at its root; both are ch
 
 ### `test_port`
 
-Defaults to `socket://localhost:7500`, which exposes the RouterBridge monitor channel.
-This workflow uses that socket instead of USB serial port discovery.
+The platform's test reader uses the default [RouterBridge connection](#routerbridge-connection) unless overridden with `test_port` or `pio test --test-port`.
+For the [device monitor](#device-monitor), configure `monitor_port` separately.
 
 ## Remote builds
 
@@ -232,7 +264,8 @@ Exposing the MCU as a remote device would require additional integration with th
 
 ## Unit testing
 
-Test output arrives over a socket rather than a serial port, and resetting the board for a test run goes through OpenOCD rather than a DTR/RTS line.
+Test output uses the [RouterBridge connection](#routerbridge-connection); the platform's reader supplies its default endpoint, with [`test_port`](#test_port) available for an override.
+Resetting the board for a test run goes through OpenOCD rather than a DTR/RTS line.
 The project selects the platform's reader through a custom test runner.
 For Unity tests, add this option to the project's environment in `platformio.ini`:
 
