@@ -327,18 +327,13 @@ Running the test directly on the MPU is also a useful reference point.
 
 ## Limitations
 
-### Static analysis metadata
+### Static analysis
 
-`pio project metadata --json-output` expands the framework's compiler response files in `cc_flags` and `cxx_flags`, including their ordered standards, macro operations, and `-imacros` headers.
-It also exposes absolute Zephyr include paths and the final command-line definitions shared by C and C++.
-Language-specific definitions remain in the flags and produce a warning when the shared `defines` field cannot represent them.
-This only supplements metadata; compilation and linking still use the original response files.
+With the currently pinned framework package, static analysis tools may fail to resolve some symbols or expand macros in framework and toolchain headers, even when the sketch builds successfully.
+Use `pio check -v` to inspect parsing errors; a `PASSED` result alone does not guarantee complete analysis.
 
-The checked PlatformIO Core 6.2.0 analysis adapters do not preserve all of this information.
-Cppcheck receives the include paths and common definitions but treats `-imacros` as ordinary forced includes; Zephyr preprocessing can still fail.
-Clang-Tidy receives the include paths and common definitions but omits the language flags, including configuration headers and target options.
-Core hides its `clang-diagnostic-error` messages unless `pio check -v` is used, and accepts Clang-Tidy exit code 1 as success.
-Consequently, `PASSED` does not prove that the sketch was parsed with its build configuration.
+If package headers prevent analysis, consider `pio check --skip-packages` or `check_skip_packages = yes` in the project's environment.
+This excludes package include paths from analysis without changing the build, but can reduce analysis coverage and accuracy for code that depends on those headers.
 
 ### Platform support
 
