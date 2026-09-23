@@ -1,5 +1,8 @@
 # Arduino Q: development platform
 
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/lee-lab-skku/platform/arduinoq.svg)](https://registry.platformio.org/platforms/lee-lab-skku/arduinoq)
+[![commits since latest](https://img.shields.io/github/commits-since/lee-lab-skku/platform-arduinoq/v1.0.0-rc.4/HEAD)](https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.4...HEAD)
+
 A PlatformIO development platform for Arduino's **Q series** &mdash; boards that pair a Linux application processor (the *MPU*) with a Zephyr-based microcontroller (the *MCU*).
 This platform builds a single Arduino sketch for the MCU.
 Only **UNO Q** support is currently implemented in this repository.
