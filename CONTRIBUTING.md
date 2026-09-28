@@ -143,6 +143,28 @@ A previous startup-output failure came from connecting the reader before resetti
 Resetting first and holding the loader in `app` mode until the reader connected resolved it.
 Changes to packing, reset, or reader startup must preserve that sequence; changing framing or flushing alone does not address the cause.
 
+That earlier fix does not establish that all startup-output corruption is resolved.
+
+### Unresolved test startup-output corruption
+
+The [known issue](README.md#intermittent-test-startup-output-corruption) remains unresolved, and further investigation is deferred.
+Reported reproduction was sensitive to the length and grouping of early serial writes, but intermittent successes do not establish a fixed failing length or a reliable workaround.
+Execution mode, Router version, USB attachment, and existing monitor clients have not been isolated as necessary or sufficient conditions.
+
+An RPC interrupted by MCU reset is a candidate mechanism, not an established hardware diagnosis.
+All three execution modes use the same reader order: reset, connect, release.
+The framework upload script independently releases the sketch before the reader resets it, leaving an interval in which the MCU can execute and initiate Bridge traffic even without a test monitor.
+The default remote path uploads with `nobuild`, preserving the already packed startup flag, and does not introduce a workstation round trip between upload and reader startup.
+Consider both the upload resets and the reader reset when tracing interrupted traffic.
+
+An incomplete `mon/write` string can consume raw startup text as its remaining payload and forward the mixed text to the monitor.
+This mechanism has been demonstrated with synthetic decoder input, but has not been confirmed by a hardware traffic capture.
+Neither a longer flush string nor a startup delay is a validated remedy.
+
+When investigating, correlate MCU traffic with upload release, reader reset, monitor connection, and reader release on the same board and image, recording host package versions and other monitor clients.
+To isolate the USB serial proxy, stop both `arduino-router-serial.path` and `arduino-router-serial.service`: the path unit can reactivate the service.
+Keep the main `arduino-router.service` running because it participates in MCU boot and communication.
+
 ### Library ownership and compatibility
 
 The framework package's export policy owns the contents of `libraries/`; do not duplicate that inventory in the platform.
@@ -228,7 +250,7 @@ The shipped executable comes from Arduino's fork, while the MCU configuration fi
 Do not rely on `adapter speed` to control the shipped `linuxgpiod` driver's speed.
 
 Do not use `0xC1` as a flush byte in RouterBridge's `bridge.h`.
-That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`; the startup banner mechanism was not the cause.
+That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`; the startup banner mechanism was not the cause of the earlier failure described above.
 The startup-output failure and the reset ordering that resolved it are described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
 Revisit this only with evidence that the protocol or parser behavior has changed.
 
@@ -236,6 +258,9 @@ Revisit this only with evidence that the protocol or parser behavior has changed
 
 - **Zephyr SDK 1.0 migration:** the current framework depends on newlib, which SDK 1.0 removes.
   Coordinate migration with the framework upstream rather than updating the toolchain independently.
-- **OpenOCD as a declared package:** retain the board-image installation until executable and configuration provenance can be managed together.
+- **MPU host package management:** consider OpenOCD packaging and version control for other host dependencies, including Arduino Router, together as a reproducibility concern.
+  For OpenOCD, consider providing a declared platform package containing a compatible executable and configuration set; retain the board-image installation until their provenance can be managed together.
   Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.
   Preserve that detection behavior if packaging changes.
+  For Arduino Router and other relevant host packages, first consider pinning tested versions rather than introducing platform packages for them.
+  These remain deferred options, not implemented dependencies or version requirements; Router 0.10.0 is not an established fix for the startup-output issue.

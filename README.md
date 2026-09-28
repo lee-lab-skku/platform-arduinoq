@@ -297,7 +297,7 @@ The skip guard also keeps the reader from running during the local build phase o
 Projects with an existing custom parser can use the same `stage_testing()` method in their runner while keeping their parsing and completion handling.
 
 A test run resets the board first, connects to the monitor socket, and only then releases the sketch &mdash; which is why test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
-This sequence avoids losing startup output because the reader attached too late or mixing it with output interrupted by reset.
+This ordering addresses reader-attachment races, but [intermittent startup-output corruption](#intermittent-test-startup-output-corruption) remains an unresolved issue.
 
 With `--no-reset`, the reader does not reset the board or release the sketch; a sketch packed for `app` boot mode is then still parked in the loader, so pair that option with an explicit `board_build.boot_mode`.
 
@@ -334,13 +334,21 @@ The RAM figure is an ELF-based estimate of LLEXT usage, not a measurement of pea
 
 ## Known issues
 
-The following behaviors originate in PlatformIO Core's remote orchestration, not in this platform.
-They are listed here because they are easy to mistake for platform bugs.
+This section covers unresolved test behavior and known limitations of PlatformIO Core's remote orchestration.
+
+### Intermittent test startup-output corruption
+
+During non-forced `pio remote test` runs, parts of the opening banners have been observed truncated or joined with other output, sometimes including `MCU starting RPC Bridge communication` fragments.
+The affected fragment and reproduction frequency vary; the absence of the Bridge message does not establish that the issue is resolved.
+The issue has been reproduced with platform rc.3 and rc.4, and updating Arduino Router from 0.9.0 to 0.10.0 did not fully resolve it.
+
+The cause and a reliable workaround remain unconfirmed.
+Local testing and `--force-remote` did not reproduce it in the initial comparisons, but those observations do not establish that either mode is unaffected.
 
 ### Only the last test suite runs under `pio remote test`
 
 When a project defines multiple test suites, a non-forced remote test run executes only the last one.
-This is a long-standing upstream issue; the upstream guidance is to use `--force-remote`.
+This is a long-standing issue in PlatformIO Core's remote orchestration; the upstream guidance is to use `--force-remote`.
 
 ### "Building & uploading" is printed on upload-only runs
 
