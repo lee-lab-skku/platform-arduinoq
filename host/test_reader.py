@@ -64,14 +64,12 @@ class ArduinoqTestOutputReader(SerialTestOutputReader):
 
         # The board has no DTR/RTS line to toggle -- the base reader's reset
         # does nothing here, and would not work over a socket URL in any case.
-        # OpenOCD drives it instead, and it has to go before the connection:
-        # connecting first leaves this reset cutting a frame in half under an
-        # attached reader (see CONTRIBUTING.md). Nothing races the first
-        # line of output, because a test build is packed for "app" startup and
-        # holds in the loader until release() below.
+        # Reset and discard the old Router decoder before connecting. Keep
+        # the CPU halted until the monitor is attached: explicit wait/immediate
+        # builds can print as soon as execution resumes, unlike app builds.
         reset = not self.test_runner.options.no_reset and self.board_control
         if reset:
-            self.board_control.reset()
+            self.board_control.halt()
 
         try:
             connection = serial.serial_for_url(
@@ -86,6 +84,7 @@ class ArduinoqTestOutputReader(SerialTestOutputReader):
         received = False
         try:
             if reset:
+                self.board_control.resume()
                 self.board_control.release()
 
             while not self.test_runner.test_suite.is_finished():

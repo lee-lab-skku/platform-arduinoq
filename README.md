@@ -296,7 +296,8 @@ class CustomTestRunner(UnityTestRunner):
 The skip guard also keeps the reader from running during the local build phase of `pio remote test`.
 Projects with an existing custom parser can use the same `stage_testing()` method in their runner while keeping their parsing and completion handling.
 
-A test run resets the board first, connects to the monitor socket, and only then releases the sketch &mdash; which is why test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
+A test run resets the board and refreshes its serial connection, keeping the MCU paused until the output reader is connected.
+Test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
 This ordering addresses reader-attachment races, but [intermittent startup-output corruption](#intermittent-test-startup-output-corruption) remains an unresolved issue.
 
 With `--no-reset`, the reader does not reset the board or release the sketch; a sketch packed for `app` boot mode is then still parked in the loader, so pair that option with an explicit `board_build.boot_mode`.
@@ -312,6 +313,11 @@ If a test binary crashes on entry, Unity's `setjmp`/`longjmp` support does not s
 It relays `Serial` and asserts the readiness signal that the resident loader checks in `wait` and `app` boot modes.
 The loader checks the signal's current level after each MCU reset; the service does not need to send a new command for each reset.
 Check the service status when the sketch does not start or serial communication fails unexpectedly.
+
+Platform-controlled resets require access to the Router's serial connection controls.
+If reconnection fails, the operation stops with the MCU halted; check the Router service and connection settings before retrying.
+The default socket is `/var/run/arduino-router.sock` (`ARDUINO_ROUTER_SOCKET`), and the default Router serial port is `/dev/ttyHS1` (`ARDUINOQ_ROUTER_SERIAL_PORT`).
+If overridden, set these environment variables on the MPU running PlatformIO or its remote agent, with the serial port matching the Router's configured path exactly.
 
 ## Board resources
 
@@ -344,6 +350,8 @@ The affected fragment and reproduction frequency vary; the absence of the Bridge
 The issue has been reproduced with platform rc.3 and rc.4, and updating Arduino Router from 0.9.0 to 0.10.0 did not fully resolve it.
 
 The cause and a reliable workaround remain unconfirmed.
+Refreshing the Router connection during reset has suppressed the issue in initial MPU testing, but broader validation is still needed.
+The mitigation currently uses a fixed reconnect delay rather than confirming that reception is ready.
 Local testing and `--force-remote` did not reproduce it in the initial comparisons, but those observations do not establish that either mode is unaffected.
 
 ### Only the last test suite runs under `pio remote test`

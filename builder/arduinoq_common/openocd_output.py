@@ -108,7 +108,7 @@ class OpenOcdOutput:
             if action == "reset-begin":
                 self.resetting = mode
             else:
-                # Only a matched, successful native return establishes command
+                # Only a matched, successful coordinated return establishes command
                 # completion; a process exit or startup banner does not.
                 if self.resetting == mode and code == "0":
                     self.emit("MCU reset command completed (%s).\n" % mode)

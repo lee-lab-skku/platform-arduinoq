@@ -11,9 +11,8 @@
 # builder/arduinoq_common/openocd_layout.py, which is what actually keeps
 # them in step.
 #
-# Everything here talks to the board over the MPU's GPIO lines, which means
-# it only works when it runs on the MPU itself. On a workstation it fails
-# with the same explanation the upload backend gives.
+# Board control uses the MPU's GPIO lines; resets also recycle the local
+# Router UART connection. Both operations must run on the MPU itself.
 
 import sys
 from os.path import abspath, dirname, join
@@ -26,7 +25,7 @@ BUILDER_DIR = join(dirname(dirname(abspath(__file__))), "builder")
 if BUILDER_DIR not in sys.path:
     sys.path.insert(0, BUILDER_DIR)
 
-from arduinoq_common import openocd_layout, openocd_output  # noqa: E402
+from arduinoq_common import openocd_layout, openocd_output, router_control  # noqa: E402
 
 # Commands for a long-running GDB server, matching the invocation the MPU's
 # own debug helper uses. "reset_config" has to precede "init", which is why
@@ -137,13 +136,18 @@ class BoardControl:
         setup = list(GDB_HOOK_STUBS)
         if gdb_port:
             setup.append("gdb_port %d" % gdb_port)
-        return self.arguments(*(setup + list(commands)), quiet=False)
+        argv = self.arguments(quiet=False)
+        argv += router_control.openocd_arguments(sys.executable)
+        for command in setup + list(commands):
+            argv += ["-c", command]
+        return argv
 
     def openocd(self, *commands, **kwargs):
         """Run commands with concise events and failure diagnostics; quiet=False adds raw logs."""
         self.ensure_available()
         quiet = kwargs.get("quiet", True)
         argv = [self.openocd_binary] + self.arguments(quiet=quiet)
+        argv += router_control.openocd_arguments(sys.executable)
         # Load the observer before init/reset, without importing any build or
         # framework scripts. Debug servers keep their unfiltered startup path.
         argv += ["-f", openocd_output.OBSERVER_SCRIPT]
@@ -157,8 +161,12 @@ class BoardControl:
             )
 
     def reset(self, quiet=True):
-        """Reset the target and let it run."""
+        """Reset, recycle the Router UART while halted, then let the target run."""
         self.openocd("init", "reset run", "shutdown", quiet=quiet)
+
+    def resume(self, quiet=True):
+        """Resume a halted target without resetting or releasing app startup."""
+        self.openocd("init", "resume", "shutdown", quiet=quiet)
 
     def release(self, quiet=True):
         """Let a sketch packed for "app" startup leave the loader.
@@ -174,5 +182,5 @@ class BoardControl:
         )
 
     def halt(self, quiet=True):
-        """Reset the target and hold it halted."""
+        """Reset and recycle the Router UART, leaving the target halted."""
         self.openocd("init", "reset halt", "shutdown", quiet=quiet)
