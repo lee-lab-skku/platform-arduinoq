@@ -25,7 +25,7 @@ from os.path import isfile, join
 
 from SCons.Script import ARGUMENTS, AlwaysBuild, Import
 
-from arduinoq_common import openocd_layout
+from arduinoq_common import openocd_layout, router_control
 from arduinoq_common.arduino_zephyr_layout import resolve as resolve_layout
 from arduinoq_common.arduino_zephyr_layout import (
     validate_flash_config,
@@ -124,7 +124,8 @@ def _configure_upload_command():
                 "set filename1 {%s}" % "${SOURCES[0]}",
             ),
             quiet=not verbose,
-        ) + ["-f", join(common_dir, "openocd_events.tcl"), "-f", flash_config_path]
+        ) + router_control.openocd_arguments(env.subst("$PYTHONEXE"))
+        + ["-f", join(common_dir, "openocd_events.tcl"), "-f", flash_config_path]
     )
 
 # Every path that can fail is behind this guard, so that merely loading the

@@ -58,7 +58,8 @@ Modules that need framework paths in both modes must use `builder/arduinoq_commo
 
 ### OpenOCD output must follow the commands actually executed
 
-Keep the framework's flash script authoritative for verification, writing, reset, and release.
+Keep the framework's flash script authoritative for verification, writing, reset requests, and the SRAM release.
+The shared [reset coordination](#reset-and-router-coordination) controls the pause inside each reset request.
 The upload observer wraps `flash` calls before that script runs and identifies images using `filename0` and `filename1`; do not branch on framework versions or infer writing from the number of verification errors.
 The writing notice must precede the actual `write_image` call and must not appear for an image the script skips.
 Preserve argument boundaries, caller scope, and the original command's return code and result.
@@ -67,7 +68,7 @@ The forwarding and wrapper installation constraints are documented beside the im
 
 Keep output filtering and Tcl observation in the SCons-independent `arduinoq_common` package so uploads and host board operations share their diagnostics without importing the upload builder.
 Observe reset commands without changing target initialization order or outcome, and do not replace target reset events.
-Report reset completion only for a matching begin/end pair with return code zero, preserving `run`, `halt`, and `init` modes.
+Report reset completion only for a matching begin/end pair with return code zero, after reset coordination has completed, preserving the requested `run`, `halt`, and `init` outcomes.
 This is command completion evidence, not sketch readiness; an interrupted or failed command must not produce a completion notice.
 Do not infer a reset from GDB startup or OpenOCD shutdown messages, and do not synthesize one for the release write.
 Keep debugger server arguments unobserved and verbose because PlatformIO uses their output to detect readiness.
@@ -130,29 +131,42 @@ Debug builds use `immediate` because waiting in the loader's `control_gpios` pat
 Test builds use `app` to hold the loader before loading the sketch until the reader is connected.
 Debug takes precedence for a debug test session because a loader breakpoint already provides the hold.
 
-The `app` path depends on agreement between packing, the test reader, and board control:
+Keep boot-mode packing and host startup control consistent.
+An `app` image waits for a separate SRAM release; ordinary uploading supplies that release, while a plain reset does not.
+CPU resume and app release must remain distinct operations.
+The test reader must complete reset and Router cleanup before attaching its monitor, and keep the MCU halted until attachment succeeds.
+This protects initial output in every boot mode; `app` adds a separate loader wait after CPU execution resumes.
 
-1. `builder/artifacts/zephyr-llext.py` packs with `-wait_for_app` so the resident loader waits before loading the sketch.
-1. `host/test_reader.py` resets the board, connects to the monitor socket, and only then calls `release()`.
-1. `host/board_control.py` releases the loader by writing its control word at the start of backup SRAM through OpenOCD.
+### Reset and Router coordination
 
-Ordinary uploading includes the release write; a plain reset does not.
-Keep these operations distinct so tests can attach while the sketch is held.
+Use shared reset coordination for platform-owned host operations, framework uploads, and debugger resets, including resets during OpenOCD initialization.
+Keep coordination separate from output observation, and preserve the framework's flash policy and the board's target event handlers.
+A requested running reset must hold the MCU halted while the Router connection is renewed, then resume only after the readiness step succeeds.
+Target reset handlers therefore see a halted reset even when the caller requested a running outcome.
+Requests to remain halted must not resume; reset or reconnection failures must propagate without resuming or reporting success.
 
-A previous startup-output failure came from connecting the reader before resetting: SRST interrupted a mid-flight RPC response, and its leftover `0x01` merged with the next boot's banner.
-Resetting first and holding the loader in `app` mode until the reader connected resolved it.
-Changes to packing, reset, or reader startup must preserve that sequence; changing framing or flushing alone does not address the cause.
+Close the old Router serial connection and wait for its termination before reopening it through the separate host control channel.
+This discards incomplete decoder state already held by the Router; flushing the UART alone cannot do so.
+Preserve monitor connections and the Router service's GPIO readiness signal rather than restarting the service.
+Connection settings and overrides belong in [Troubleshooting](README.md#troubleshooting).
 
-That earlier fix does not establish that all startup-output corruption is resolved.
+The open acknowledgement does not guarantee receive readiness.
+The current fixed delay is provisional: replace it with a reliable readiness check when available, retaining its position before MCU execution resumes.
+A monitor must also be attached before resume when initial output must be retained; ordinary uploads and resets do not create one.
+External resets and custom debug servers are outside this coordination.
+
+Validate changes on the MPU with its actual OpenOCD build, covering upload, direct board control, test startup, and debugger resets.
+Check early output across boot modes and verify that failures leave execution halted.
+Host-only checks cannot establish UART readiness or hardware reset behavior.
 
 ### Unresolved test startup-output corruption
 
-The [known issue](README.md#intermittent-test-startup-output-corruption) remains unresolved, and further investigation is deferred.
+The [known issue](README.md#intermittent-test-startup-output-corruption) remains under investigation; initial MPU testing reports that reset coordination suppresses it, but this does not establish a complete fix.
 Reported reproduction was sensitive to the length and grouping of early serial writes, but intermittent successes do not establish a fixed failing length or a reliable workaround.
 Execution mode, Router version, USB attachment, and existing monitor clients have not been isolated as necessary or sufficient conditions.
 
 An RPC interrupted by MCU reset is a candidate mechanism, not an established hardware diagnosis.
-All three execution modes use the same reader order: reset, connect, release.
+Local and remote test readers must follow the same startup ordering described above.
 The framework upload script independently releases the sketch before the reader resets it, leaving an interval in which the MCU can execute and initiate Bridge traffic even without a test monitor.
 The default remote path uploads with `nobuild`, preserving the already packed startup flag, and does not introduce a workstation round trip between upload and reader startup.
 Consider both the upload resets and the reader reset when tracing interrupted traffic.
@@ -252,8 +266,8 @@ The shipped executable comes from Arduino's fork, while the MCU configuration fi
 Do not rely on `adapter speed` to control the shipped `linuxgpiod` driver's speed.
 
 Do not use `0xC1` as a flush byte in RouterBridge's `bridge.h`.
-That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`; the startup banner mechanism was not the cause of the earlier failure described above.
-The startup-output failure and the reset ordering that resolved it are described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
+That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`.
+Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordination-contract) that protects reader attachment rather than substituting framing changes for reset coordination.
 Revisit this only with evidence that the protocol or parser behavior has changed.
 
 ## Deferred decisions
