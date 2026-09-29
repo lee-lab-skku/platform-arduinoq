@@ -19,14 +19,22 @@ class RouterError(Exception):
     pass
 
 
+def _tcl_path(path):
+    # Numeric character arguments avoid Tcl substitution and embedded shell
+    # quotes when Core flattens debugger arguments. The board's OpenOCD Jim
+    # build lacks the optional binary command, so use its core format command.
+    value = str(path)
+    return "[format {%s} %s]" % ("%c" * len(value), " ".join(str(ord(c)) for c in value))
+
+
 def openocd_arguments(python):
     """Load reset coordination before init, also in the unfiltered GDB server.
 
-    Hex-encoded Tcl words preserve paths without embedded quotes, which Core
-    can otherwise break when flattening debugger arguments into a shell string.
+    Encoded Tcl words preserve paths without embedded quotes, which Core can
+    otherwise break when flattening debugger arguments into a shell string.
     """
     script = Path(__file__).resolve()
-    words = ["[binary format H* %s]" % str(p).encode().hex() for p in (python, script)]
+    words = [_tcl_path(p) for p in (python, script)]
     return [
         "-c", "set arduinoq_router_command [list %s]" % " ".join(words),
         "-f", str(script.with_name("openocd_router.tcl")),
