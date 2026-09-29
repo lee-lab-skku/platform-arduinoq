@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated user and contributor documentation for remote device discovery, RouterBridge connections and monitoring, static analysis limitations, and Router readiness and sketch startup behavior, and added registry and commits-since badges to the README.
+
+### Fixed
+
+- PlatformIO integration metadata now expands framework compiler response files, preserving ordered C/C++ flags and exposing Zephyr include paths and shared final definitions without changing compilation or linking.
+
 ## [1.0.0-rc.4]
 
 ### Added
