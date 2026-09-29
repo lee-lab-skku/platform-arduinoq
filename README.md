@@ -309,8 +309,9 @@ If a test binary crashes on entry, Unity's `setjmp`/`longjmp` support does not s
 ## Troubleshooting
 
 **`arduino-router.service` must be running on the MPU.**
-The service participates in reset and flashing as well as relaying `Serial`.
-Check its status when uploads, resets, or serial communication fail unexpectedly.
+It relays `Serial` and asserts the readiness signal that the resident loader checks in `wait` and `app` boot modes.
+The loader checks the signal's current level after each MCU reset; the service does not need to send a new command for each reset.
+Check the service status when the sketch does not start or serial communication fails unexpectedly.
 
 ## Board resources
 

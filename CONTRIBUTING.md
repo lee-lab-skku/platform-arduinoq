@@ -241,8 +241,10 @@ Keep the user-facing distinction in [Board resources](README.md#board-resources)
 
 ## Board integration constraints
 
-The board environment used by this platform boots the MCU through System Memory ROM.
-`arduino-router.service` sends the bootloader command that transfers execution to flash, so reset and startup depend on the router being available.
+In the board environment used by this platform, `arduino-router.service` uses its `--after-ready` command to assert a GPIO readiness signal.
+The resident loader's `wait` and `app` modes check the level of its `control_gpios` input before loading the sketch.
+While that signal remains asserted, an MCU reset can pass the same readiness check without a new command from the Router.
+The `app` mode additionally waits for the backup SRAM release described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
 Keep this dependency visible in the user's [Troubleshooting](README.md#troubleshooting) guidance.
 
 Use the board image's OpenOCD installation as the integration baseline.
