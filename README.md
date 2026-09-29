@@ -298,7 +298,7 @@ Projects with an existing custom parser can use the same `stage_testing()` metho
 
 A test run resets the board and refreshes its serial connection, keeping the MCU paused until the output reader is connected.
 Test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
-This ordering addresses reader-attachment races, but [intermittent startup-output corruption](#intermittent-test-startup-output-corruption) remains an unresolved issue.
+This ordering addresses reader-attachment races; [intermittent startup-output corruption](#intermittent-test-startup-output-corruption) is considered resolved unless reported again, with the reset workaround retained.
 
 With `--no-reset`, the reader does not reset the board or release the sketch; a sketch packed for `app` boot mode is then still parked in the loader, so pair that option with an explicit `board_build.boot_mode`.
 
@@ -341,17 +341,18 @@ The RAM figure is an ELF-based estimate of LLEXT usage, not a measurement of pea
 
 ## Known issues
 
-This section covers unresolved test behavior and known limitations of PlatformIO Core's remote orchestration.
+This section tracks known test issues, their current status, and limitations of PlatformIO Core's remote orchestration.
 
 ### Intermittent test startup-output corruption
 
-During non-forced `pio remote test` runs, parts of the opening banners have been observed truncated or joined with other output, sometimes including `MCU starting RPC Bridge communication` fragments.
-The affected fragment and reproduction frequency vary; the absence of the Bridge message does not establish that the issue is resolved.
+**Status: considered resolved unless reported again.**
+Refreshing the Router connection while the MCU is halted during reset has suppressed the issue in initial MPU testing.
+This remains a workaround: it uses a fixed reconnect delay rather than confirming that reception is ready, and the underlying cause remains unconfirmed.
+
+During non-forced `pio remote test` runs, parts of the opening banners were observed truncated or joined with other output, sometimes including `MCU starting RPC Bridge communication` fragments.
+The affected fragment and reproduction frequency varied; a recurrence need not include the Bridge message.
 The issue has been reproduced with platform rc.3 and rc.4, and updating Arduino Router from 0.9.0 to 0.10.0 did not fully resolve it.
 
-The cause and a reliable workaround remain unconfirmed.
-Refreshing the Router connection during reset has suppressed the issue in initial MPU testing, but broader validation is still needed.
-The mitigation currently uses a fixed reconnect delay rather than confirming that reception is ready.
 Local testing and `--force-remote` did not reproduce it in the initial comparisons, but those observations do not establish that either mode is unaffected.
 
 ### Only the last test suite runs under `pio remote test`

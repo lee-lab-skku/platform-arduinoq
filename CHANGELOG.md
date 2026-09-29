@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - PlatformIO integration metadata now expands framework compiler response files, preserving ordered C/C++ flags and exposing Zephyr include paths and shared final definitions without changing compilation or linking.
+- Platform-controlled resets now reconnect the Router UART while the MCU is halted, and test startup keeps execution halted until the output reader is connected.
+  Intermittent test startup-output corruption is considered resolved.
 
 ## [1.0.0-rc.4]
 

@@ -151,7 +151,7 @@ Preserve monitor connections and the Router service's GPIO readiness signal rath
 Connection settings and overrides belong in [Troubleshooting](README.md#troubleshooting).
 
 The open acknowledgement does not guarantee receive readiness.
-The current fixed delay is provisional: replace it with a reliable readiness check when available, retaining its position before MCU execution resumes.
+The current fixed delay is a provisional workaround: replace it with a reliable readiness check when available, retaining its position before MCU execution resumes.
 A monitor must also be attached before resume when initial output must be retained; ordinary uploads and resets do not create one.
 External resets and custom debug servers are outside this coordination.
 
@@ -159,10 +159,12 @@ Validate changes on the MPU with its actual OpenOCD build, covering upload, dire
 Check early output across boot modes and verify that failures leave execution halted.
 Host-only checks cannot establish UART readiness or hardware reset behavior.
 
-### Unresolved test startup-output corruption
+### Test startup-output corruption: considered resolved
 
-The [known issue](README.md#intermittent-test-startup-output-corruption) remains under investigation; initial MPU testing reports that reset coordination suppresses it, but this does not establish a complete fix.
-Reported reproduction was sensitive to the length and grouping of early serial writes, but intermittent successes do not establish a fixed failing length or a reliable workaround.
+The [known issue](README.md#intermittent-test-startup-output-corruption) is considered resolved unless reported again, based on initial MPU testing in which reset coordination suppressed it.
+Retain the reset coordination workaround, including its provisional fixed reconnect delay; this status does not establish the root cause or guarantee receive readiness.
+The investigation context below is retained for any recurrence.
+Reported reproduction was sensitive to the length and grouping of early serial writes, but intermittent successes do not establish a fixed failing length or a reliable write-length workaround.
 Execution mode, Router version, USB attachment, and existing monitor clients have not been isolated as necessary or sufficient conditions.
 
 An RPC interrupted by MCU reset is a candidate mechanism, not an established hardware diagnosis.
@@ -173,9 +175,9 @@ Consider both the upload resets and the reader reset when tracing interrupted tr
 
 An incomplete `mon/write` string can consume raw startup text as its remaining payload and forward the mixed text to the monitor.
 This mechanism has been demonstrated with synthetic decoder input, but has not been confirmed by a hardware traffic capture.
-Neither a longer flush string nor a startup delay is a validated remedy.
+Neither a longer flush string nor a startup delay alone is a validated remedy.
 
-When investigating, correlate MCU traffic with upload release, reader reset, monitor connection, and reader release on the same board and image, recording host package versions and other monitor clients.
+If the issue is reported again, reopen the investigation and correlate MCU traffic with upload release, reader reset, monitor connection, and reader release on the same board and image, recording host package versions and other monitor clients.
 To isolate the USB serial proxy, stop both `arduino-router-serial.path` and `arduino-router-serial.service`: the path unit can reactivate the service.
 Keep the main `arduino-router.service` running because it participates in MCU boot and communication.
 
