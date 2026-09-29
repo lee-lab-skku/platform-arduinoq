@@ -166,7 +166,10 @@ class BoardControl:
 
     def resume(self, quiet=True):
         """Resume a halted target without resetting or releasing app startup."""
-        self.openocd("init", "resume", "shutdown", quiet=quiet)
+        # The halt happened in another OpenOCD process. Poll first so this
+        # process learns the hardware state and loads the halted context
+        # before resume checks its cached target state.
+        self.openocd("init", "poll", "resume", "shutdown", quiet=quiet)
 
     def release(self, quiet=True):
         """Let a sketch packed for "app" startup leave the loader.
