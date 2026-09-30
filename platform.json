@@ -1,7 +1,17 @@
 {
   "name": "arduinoq",
   "title": "Arduino Q",
-  "description": "Arduino Q workflow for PlatformIO",
+  "description": "Arduino Q boards combine a Linux application processor with a microcontroller running Arduino sketches on Zephyr OS, bringing together Linux computing and real-time control.",
+  "homepage": "https://www.arduino.cc/product-uno-q",
+  "keywords": [
+    "dev-platform",
+    "arduino",
+    "arduino-q",
+    "zephyr",
+    "arm",
+    "cortex-m33",
+    "stm32"
+  ],
   "engines": {
     "platformio": "^6.1.0"
   },
@@ -14,7 +24,7 @@
     "arduino": {
       "package": "framework-arduino-zephyr",
       "script": "builder/frameworks/arduino-zephyr.py",
-      "title": "Arduino fork of Zephyr"
+      "title": "Arduino Core for Zephyr (Arduino fork)"
     }
   },
   "authors": [
