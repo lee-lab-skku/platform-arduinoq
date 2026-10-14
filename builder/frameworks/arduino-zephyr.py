@@ -124,22 +124,18 @@ LLEXT_RUNTIME_FLAGS = [
     "-fno-use-cxa-atexit",
     "-fno-unwind-tables",
 ]
-LLEXT_CXXFLAGS = LLEXT_RUNTIME_FLAGS + [
-    "-lstdc++",
-    "-lsupc++",
-    "-lnosys",
-    "-nostdlib",
-    "-lm",
-]
+# Match the core 1.0 recipe: errno is already a resident TLS symbol and must
+# not acquire the C++ external-TLS initialization thunk that LLEXT cannot load.
+LLEXT_CXXFLAGS = LLEXT_RUNTIME_FLAGS + ["-fno-extern-tls-init"]
+# SDK 1.0 ships picolibc rather than newlib/nano. The generated compile
+# response files select picolibc.specs; the relocatable link uses explicit
+# runtime libraries below, as upstream does, without nano/nosys specs.
 LLEXT_LINKFLAGS = [
-    "--specs=nano.specs",
-    "--specs=nosys.specs",
     "-Wl,--gc-sections",
 ] + LLEXT_RUNTIME_FLAGS + [
-    "-lstdc++",
-    "-lsupc++",
     "-lnosys",
     "-nostdlib",
+    "-Wl,-u,__cxa_allocate_exception",
     "-r",
     "-e",
     "main",
@@ -191,6 +187,8 @@ env.Append(
         "stdc++",
         "supc++",
         "m",
+        "gcc",
+        "c",
     ],
     LINKFLAGS=machine_flags + LLEXT_LINKFLAGS,
     STATIC_CHECK_LINKFLAGS=STATIC_CHECK_LINKFLAGS,

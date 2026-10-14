@@ -394,6 +394,13 @@ This excludes package include paths from analysis without changing the build, bu
   Check whether each library supports the board and its Zephyr-based core.
 - **Only the UNO Q is implemented** at present.
 
+## Candidate package evaluation
+
+This development branch adapts the relocatable link recipe for the core 1.0 / SDK 1.0 package candidate.
+Use explicit `platform_packages` overrides for the matching staged framework, toolchain and tools while evaluating it.
+Published RC4 package pins remain unchanged until a validated package set is selected.
+A workstation build establishes compile/link/pack compatibility only; upload, startup, communication and debugging still require UNO Q validation on its MPU.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development requirements, architectural constraints, and validation guidance.
