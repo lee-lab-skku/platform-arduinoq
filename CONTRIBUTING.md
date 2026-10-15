@@ -56,6 +56,15 @@ Force `__cxa_allocate_exception` as the upstream recipe does, including in the s
 Compile C++ with `-fno-extern-tls-init` so resident `errno` does not gain an undefined `_ZTH5errno` initialization thunk in the extension.
 Validate basic and C++/errno/Zephyr-export fixtures through the actual static check and both dynamic link passes; a compiler-only result is insufficient.
 
+### Debug symbols must use loader allocations
+
+Prepare a session-local resident ELF with `text` renamed to `.text` before GDB reads it; GDB 16.2 cannot set breakpoints in the original nonstandard text section.
+Preserve loadable addresses/bytes and DWARF, leave the package resident immutable, and keep the temporary ELF alive across Core's pre-debug rebuild/upload.
+The upload path must continue using the original resident.
+Read section addresses from the resident firmware's `struct llext` and enum names before replacing its symbol table.
+Keep `.data` distinct from `.text`: LLEXT allocates initialized data separately, and GDB leaves omitted sections at their original ELF addresses.
+Validate an initialized global's value and address as well as a local variable and a file/line breakpoint; reading a zero-initialized `.bss` global alone does not check `.data` placement.
+
 ### Framework paths must be available without a build
 
 PlatformIO runs framework scripts inside `ProcessProgramDeps()`.

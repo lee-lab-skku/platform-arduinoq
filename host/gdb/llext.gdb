@@ -33,6 +33,8 @@ define arduinoq_sketch_regions
   else
     printf "  .text                  0x%08x  %8u bytes\n", \
         $_aq_ext->mem[LLEXT_MEM_TEXT], $_aq_ext->mem_size[LLEXT_MEM_TEXT]
+    printf "  .data                  0x%08x  %8u bytes\n", \
+        $_aq_ext->mem[LLEXT_MEM_DATA], $_aq_ext->mem_size[LLEXT_MEM_DATA]
     printf "  .rodata                0x%08x  %8u bytes\n", \
         $_aq_ext->mem[LLEXT_MEM_RODATA], $_aq_ext->mem_size[LLEXT_MEM_RODATA]
     printf "  .bss                   0x%08x  %8u bytes\n", \
@@ -58,6 +60,7 @@ define arduinoq_place_sketch_symbols
   # Capture as plain integers before dropping the symbol table: the values
   # would otherwise keep a type that is about to disappear.
   set $_aq_text = (unsigned long)$_aq_ext->mem[LLEXT_MEM_TEXT]
+  set $_aq_data = (unsigned long)$_aq_ext->mem[LLEXT_MEM_DATA]
   set $_aq_rodata = (unsigned long)$_aq_ext->mem[LLEXT_MEM_RODATA]
   set $_aq_bss = (unsigned long)$_aq_ext->mem[LLEXT_MEM_BSS]
   set $_aq_noreloc = (unsigned long)$_aq_ext->mem[LLEXT_MEM_RODATA_NO_RELOC]
@@ -82,12 +85,11 @@ define arduinoq_place_sketch_symbols
   # substitutes $arg0 textually before parsing the line, so it arrives as a
   # bare word, and eval's arguments have to be expressions.
   #
-  # The positional address is the .text region; every other section is offset
-  # by the same amount, which is what .data needs since the loader keeps it
-  # inside the text allocation. The regions that get their own allocation are
-  # named explicitly.
-  eval "add-symbol-file $arg0 0x%lx -s .rodata 0x%lx -s .bss 0x%lx -s .llext.rodata.noreloc 0x%lx", \
-      $_aq_text, $_aq_rodata, $_aq_bss, $_aq_noreloc
+  # LLEXT allocates .data independently from .text. GDB keeps an omitted
+  # section at its ELF address; the positional .text argument does not move
+  # initialized globals. Pass each data region's actual loader address.
+  eval "add-symbol-file $arg0 0x%lx -s .data 0x%lx -s .rodata 0x%lx -s .bss 0x%lx -s .llext.rodata.noreloc 0x%lx", \
+      $_aq_text, $_aq_data, $_aq_rodata, $_aq_bss, $_aq_noreloc
 
   # Dropping the symbol table disabled every breakpoint that could not be
   # re-set at the time, and re-adding it fixes the address but not the

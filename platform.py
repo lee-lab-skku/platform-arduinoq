@@ -282,6 +282,19 @@ class ArduinoqPlatform(PlatformBase):
             self, debug_config.board_config
         )
 
+        # Keep this outside the environment build directory: Core may rebuild
+        # and clean that directory after configuring the debugger. Holding the
+        # owner on debug_config keeps its temporary ELF alive through the GDB
+        # session, including the pre-debug upload, without touching packages.
+        debug_symbols = self._load_host_module("debug_symbols")
+        toolchain_dir = self.get_package_dir("toolchain-gccarmzephyreabi")
+        debug_config._arduinoq_resident_symbols = debug_symbols.ResidentSymbols(
+            layout.resident_elf,
+            os.path.join(toolchain_dir, "bin", "arm-zephyr-eabi-objcopy"),
+        )
+        resident_symbols = debug_config._arduinoq_resident_symbols.path
+        resident_symbols = resident_symbols.replace("\\", "\\\\").replace('"', '\\"')
+
         commands = [
             # A safety net only, now that the sketch's symbols stay loaded
             # throughout. It does not help an IDE: MI's -break-insert ignores
@@ -299,7 +312,7 @@ class ArduinoqPlatform(PlatformBase):
             #
             # Absolute: this is fed to GDB verbatim, with no shell to expand
             # a "~" along the way.
-            "symbol-file %s" % layout.resident_elf,
+            'symbol-file "%s"' % resident_symbols,
             # Run to the extension and place its symbols here, while the init
             # script still has control. Everything an IDE does happens after
             # this file finishes, so by then the sketch's symbols are already
