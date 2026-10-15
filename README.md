@@ -56,8 +56,10 @@ pio pkg install --global --platform https://github.com/lee-lab-skku/platform-ard
 This command installs the latest commit of the dev-platform by cloning this repository.
 To use a versioned release from the PlatformIO registry, follow [Quick start](#quick-start).
 
-Packages are resolved from GitHub release assets.
-The `linux_aarch64` build is selected automatically on the MPU.
+Packages are resolved from GitHub release assets for the build host; the MPU selects `linux_aarch64` automatically.
+This revision uses prebuilt ArduinoCore-zephyr 1.0.0 and Zephyr SDK 1.0.1 packages.
+Complete framework and helper-tool pins are maintained in [platform.json](platform.json); no `platform_packages` overrides are needed for the default package set.
+These package versions do not change the platform release version or the pins in earlier platform releases.
 
 ## Quick start
 
@@ -386,6 +388,11 @@ Use `pio check -v` to inspect parsing errors; a `PASSED` result alone does not g
 If package headers prevent analysis, consider `pio check --skip-packages` or `check_skip_packages = yes` in the project's environment.
 This excludes package include paths from analysis without changing the build, but can reduce analysis coverage and accuracy for code that depends on those headers.
 
+### Debugging
+
+Sketch source breakpoints, stepping, and local and global variable inspection are supported on the MPU.
+Backtraces through the resident firmware may stop before unwinding the full call stack.
+
 ### Platform support
 
 - **Only the dynamic (relocatable LLEXT) link mode is supported.**
@@ -393,13 +400,6 @@ This excludes package include paths from analysis without changing the build, bu
   The `arduino` framework identifier allows discovery of Arduino libraries, but libraries that depend on AVR/SAM internals or conflict with Zephyr symbols may fail.
   Check whether each library supports the board and its Zephyr-based core.
 - **Only the UNO Q is implemented** at present.
-
-## Candidate package evaluation
-
-This development branch pins the prebuilt core 1.0.0, SDK 1.0.1, sketch tool 0.4.1, gen-rodata-ld 0.1.1 and zephyr-check-size 0.1.0 packages.
-The resolver selects their public release assets for the build host; `platform_packages` overrides are unnecessary for this package set.
-The published RC4 platform release retains its original pins.
-A workstation build establishes compile/link/pack compatibility only; upload, startup, communication and debugging still require UNO Q validation on its MPU.
 
 ## Contributing
 
