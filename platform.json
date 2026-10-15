@@ -13,7 +13,7 @@
     "stm32"
   ],
   "engines": {
-    "platformio": "^6.1.0"
+    "platformio": "^6.1.19"
   },
   "repository": {
     "type": "git",

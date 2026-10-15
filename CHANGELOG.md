@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Raised the minimum PlatformIO Core requirement to 6.1.19.
 - Default packages now use prebuilt ArduinoCore-zephyr 1.0.0, Zephyr SDK 1.0.1, and matching helper tools.
   Updated C++ runtime linking and resident/sketch debug symbol handling for compatibility with the new packages.
 - Updated user and contributor documentation for remote device discovery, RouterBridge connections and monitoring, static analysis limitations, and Router readiness and sketch startup behavior, and added registry and commits-since badges to the README.
