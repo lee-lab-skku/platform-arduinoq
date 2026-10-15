@@ -48,6 +48,27 @@ Target discovery must not validate OpenOCD or operate hardware.
 The guarantee covers sketch build actions, not Core initialization, package installation, or user-provided extra scripts.
 Non-forced remote orchestration performs a local build outside this control-only path; document forced remote execution instead.
 
+### C++ runtime linking must match the framework recipe
+
+The framework's generated response files and resident configuration define the libc contract.
+Keep the framework, SDK, compiler ABI and link recipe aligned when updating packages; do not infer the libc from the SDK version alone.
+Retain the response files' compile-time specs and headers, but do not add the nano/nosys link specs removed from SDK 1.0.
+Keep explicit C++/math/GCC/C libraries inside the existing archive group, after the core archive.
+Force `__cxa_allocate_exception` as the upstream recipe does, including in the static compatibility link.
+Compile C++ with `-fno-extern-tls-init` so resident `errno` does not gain an undefined `_ZTH5errno` initialization thunk in the extension.
+Validate basic and C++/errno/Zephyr-export fixtures through the actual static check and both dynamic link passes; a compiler-only result is insufficient.
+
+### Debug symbols must use loader allocations
+
+Prepare a session-local resident ELF with `text` renamed to `.text` before GDB reads it to avoid the GDB 16.2 breakpoint crash observed with the packaged resident ELF.
+Preserve loadable addresses/bytes and DWARF, leave the package resident immutable, and keep the temporary ELF alive across Core's pre-debug rebuild/upload.
+The upload path must continue using the original resident, and session cleanup must remove the temporary copy.
+
+Read section addresses from the resident firmware's `struct llext` and enum names before replacing its symbol table.
+Keep `.data` distinct from `.text`: LLEXT allocates initialized data separately, and GDB leaves omitted sections at their original ELF addresses.
+Validate an initialized global's value and address as well as a local variable and a file/line breakpoint; reading a zero-initialized `.bss` global alone does not check `.data` placement.
+Cover both automatic build/upload and loading existing artifacts, including symbol relocation after reset.
+
 ### Framework paths must be available without a build
 
 PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
@@ -274,8 +295,6 @@ Revisit this only with evidence that the protocol or parser behavior has changed
 
 ## Deferred decisions
 
-- **Zephyr SDK 1.0 migration:** the current framework depends on newlib, which SDK 1.0 removes.
-  Coordinate migration with the framework upstream rather than updating the toolchain independently.
 - **MPU host package management:** consider OpenOCD packaging and version control for other host dependencies, including Arduino Router, together as a reproducibility concern.
   For OpenOCD, consider providing a declared platform package containing a compatible executable and configuration set; retain the board-image installation until their provenance can be managed together.
   Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.

@@ -38,23 +38,23 @@
   "packages": {
     "toolchain-gccarmzephyreabi": {
       "type": "toolchain",
-      "version": "0.16.8-leelabskku"
+      "version": "1.0.1-leelabskku+prebuilt"
     },
     "framework-arduino-zephyr": {
       "type": "framework",
-      "version": "0.56.0-leelabskku+unoq"
+      "version": "1.0.0-leelabskku+prebuilt.q"
     },
     "tool-zephyrsketch": {
       "type": "tool",
-      "version": "0.4.0-leelabskku"
+      "version": "0.4.1-leelabskku+prebuilt"
     },
     "tool-genrodatald": {
       "type": "tool",
-      "version": "0.1.1-leelabskku"
+      "version": "0.1.1-leelabskku+prebuilt"
     },
     "tool-zephyrchecksize": {
       "type": "tool",
-      "version": "0.1.0-leelabskku"
+      "version": "0.1.0-leelabskku+prebuilt"
     }
   }
 }
