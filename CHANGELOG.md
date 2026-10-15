@@ -11,13 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Default packages now use prebuilt ArduinoCore-zephyr 1.0.0, Zephyr SDK 1.0.1, and matching helper tools.
+  Updated C++ runtime linking and resident/sketch debug symbol handling for compatibility with the new packages.
 - Updated user and contributor documentation for remote device discovery, RouterBridge connections and monitoring, static analysis limitations, and Router readiness and sketch startup behavior, and added registry and commits-since badges to the README.
+- Clarified default package installation and runtime debugging support, including the limitation on backtraces through resident firmware.
+- Refined the platform description and framework title, added the official UNO Q homepage, and added discovery keywords to the platform metadata.
 
 ### Fixed
 
 - PlatformIO integration metadata now expands framework compiler response files, preserving ordered C/C++ flags and exposing Zephyr include paths and shared final definitions without changing compilation or linking.
 - Platform-controlled resets now reconnect the Router UART while the MCU is halted, and test startup keeps execution halted until the output reader is connected.
-  Intermittent test startup-output corruption is considered resolved.
+  Resets require access to the Router's serial connection controls and leave the MCU halted if reconnection fails; custom connection settings use `ARDUINO_ROUTER_SOCKET` and `ARDUINOQ_ROUTER_SERIAL_PORT` on the MPU.
+  Intermittent test startup-output corruption is considered resolved, with the provisional fixed reconnect delay retained and the underlying cause unconfirmed.
 
 ## [1.0.0-rc.4]
 
