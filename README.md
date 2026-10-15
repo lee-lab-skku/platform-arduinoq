@@ -396,9 +396,9 @@ This excludes package include paths from analysis without changing the build, bu
 
 ## Candidate package evaluation
 
-This development branch adapts the relocatable link recipe for the core 1.0 / SDK 1.0 package candidate.
-Use explicit `platform_packages` overrides for the matching staged framework, toolchain and tools while evaluating it.
-Published RC4 package pins remain unchanged until a validated package set is selected.
+This development branch pins the prebuilt core 1.0.0, SDK 1.0.1, sketch tool 0.4.1, gen-rodata-ld 0.1.1 and zephyr-check-size 0.1.0 packages.
+The resolver selects their public release assets for the build host; `platform_packages` overrides are unnecessary for this package set.
+The published RC4 platform release retains its original pins.
 A workstation build establishes compile/link/pack compatibility only; upload, startup, communication and debugging still require UNO Q validation on its MPU.
 
 ## Contributing
