@@ -1,0 +1,37 @@
+{
+  "build": {
+    "mcu": "stm32h5f5lj",
+    "f_cpu": "250000000L",
+    "machine_flags": [
+      "-mcpu=cortex-m33",
+      "-mthumb",
+      "-mabi=aapcs",
+      "-mfpu=fpv5-sp-d16",
+      "-mfloat-abi=hard",
+      "-mfp16-format=ieee",
+      "-mtp=soft",
+      "-ftls-model=local-exec",
+      "-mlong-calls"
+    ],
+    "variant": "arduino_ventuno_q_stm32h5f5xx",
+    "arduino": {
+      "board": "VENTUNO_Q"
+    }
+  },
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "arduinoq"
+  ],
+  "name": "Arduino Ventuno Q",
+  "upload": {
+    "protocol": "linuxgpiod",
+    "maximum_ram_size": 1572864,
+    "maximum_size": 4194304,
+    "maximum_sketch_ram_size": 262144,
+    "maximum_sketch_size": 1048576
+  },
+  "url": "https://docs.arduino.cc/hardware/ventuno-q/",
+  "vendor": "Arduino"
+}
