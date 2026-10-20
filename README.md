@@ -22,7 +22,8 @@ Everything here &mdash; the platform, the toolchain build, the framework package
 ## Requirements
 
 **The build host must be Linux**, `x86_64` or `aarch64`.
-Every package this platform installs is a Linux build.
+The framework and tool packages supplied by this platform are Linux builds.
+Library source archives are compiled for the selected MCU.
 `pio run` on any other host fails immediately with an explanatory error.
 
 A non-Linux workstation can still be used, through PlatformIO's remote mode with `--force-remote` (`-r`), which runs the whole build on the board.
@@ -58,7 +59,8 @@ To use a versioned release from the PlatformIO registry, follow [Quick start](#q
 
 Packages are resolved from GitHub release assets for the build host; the MPU selects `linux_aarch64` automatically.
 This revision uses prebuilt ArduinoCore-zephyr 1.0.0 and Zephyr SDK 1.0.1 packages.
-Complete framework and helper-tool pins are maintained in [platform.json](platform.json); no `platform_packages` overrides are needed for the default package set.
+Framework, helper-tool and default library pins are maintained in [platform.json](platform.json); no `platform_packages` overrides are needed for the default package set.
+RouterBridge and its dependencies are installed per project environment when resolving project dependencies, rather than during a project-free global platform installation.
 These package versions do not change the platform release version or the pins in earlier platform releases.
 
 ## Quick start
@@ -114,8 +116,18 @@ Writing notices indicate an attempt, not successful completion.
 ## Serial communication
 
 `Serial` is a logical channel carried over the MCU&harr;MPU link, provided by the **Arduino_RouterBridge** library rather than by the core.
-Add RouterBridge to `lib_deps` when using `Serial`, as shown above.
-PlatformIO resolves its RPCLite and MsgPack dependencies automatically.
+The platform supplies a pinned RouterBridge release automatically for Arduino environments.
+PlatformIO follows that library's own pinned RPClite and MsgPack dependencies and installs the chain in the environment's `.pio/libdeps/` storage.
+The framework detects RouterBridge's Serial-provider header and defines `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL`; no explicit build flag is needed.
+
+An explicit RouterBridge entry in your project's `lib_deps` replaces the platform default.
+
+Named dependencies and RouterBridge repository/release URLs are recognized directly.
+Local sources can also be identified by their library manifest.
+Use the `Arduino_RouterBridge=<URI>` alias when an arbitrary remote URL does not identify the library by name.
+Other dependencies and their version resolution follow PlatformIO's normal library rules.
+The platform's qualified combination is its default pin; an override selects a different combination.
+This does not rewrite `platformio.ini` or add another platform pin for RPClite or MsgPack.
 
 `Serial1` provides hardware UART access on `D0`/`D1`.
 

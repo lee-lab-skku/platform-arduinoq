@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automatic installation of Arduino_RouterBridge 0.4.5-leelabskku for Arduino environments.
+
 ### Changed
 
 - Raised the minimum PlatformIO Core requirement to 6.1.19.
@@ -24,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Platform-controlled resets now reconnect the Router UART while the MCU is halted, and test startup keeps execution halted until the output reader is connected.
   Resets require access to the Router's serial connection controls and leave the MCU halted if reconnection fails; custom connection settings use `ARDUINO_ROUTER_SOCKET` and `ARDUINOQ_ROUTER_SERIAL_PORT` on the MPU.
   Intermittent test startup-output corruption is considered resolved, with the provisional fixed reconnect delay retained and the underlying cause unconfirmed.
+
+### Removed
+
+- Manual `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL` build flag is no longer required.
 
 ## [1.0.0-rc.4]
 
