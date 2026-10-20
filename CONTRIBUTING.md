@@ -10,7 +10,7 @@ File and function names belong here when they identify the participants in that 
 ## Using a development checkout
 
 Clone `platform-arduinoq` and create a separate sketch project using the [Quick start](README.md#quick-start).
-Replace its registry reference (`lee-lab-skku/arduinoq@<version>`) with the absolute path to your checkout, keeping the other project settings:
+Set the platform reference to the absolute path of the checkout you are changing, keeping the other project settings:
 
 ```ini
 platform = symlink:///home/user/platform-arduinoq
@@ -237,6 +237,29 @@ The `packages` property strips prerelease and build metadata when filling the re
 For example, a pin such as `0.56.0-leelabskku+unoq` supplies `0.56.0` for `{release}` while keeping the complete pin in the filename.
 The framework package is architecture-independent; toolchains and helper tools include `linux_x86_64` or `linux_aarch64` in their asset names.
 Explicit `platform_packages` overrides must bypass URL expansion.
+
+### Platform-managed libraries
+
+The top-level `libraries` field in `platform.json` owns exact default library versions.
+It is interpreted by this platform, separately from Core's framework/tool `packages` field.
+`LIBRARY_URL_BASES` owns library repository and tag rules; retain the complete library version in both the release tag and asset name.
+The library resolver returns copies and must not replace the manifest's nominal versions with URLs.
+
+`configure_project_packages()` first retains Core's package configuration and target validation, then adds library defaults to the shared in-memory configuration of Arduino environments.
+Core installs these through Library Manager before a build; SCons recreates the same defaults when it loads the platform.
+Do not save the project configuration, install libraries inside the hook, or add hardware/SCons dependencies to the resolver.
+Repeated calls must not duplicate defaults or leak selections between environments.
+Project-free global platform installation does not create a library environment.
+
+An explicit project RouterBridge selection suppresses the platform default; preserve its specification and let Core handle transitive dependencies.
+Use `PackageSpec` identity, including repository-name spelling, and inspect existing local manifests without extracting them.
+Unidentifiable remote sources use Core's explicit `Arduino_RouterBridge=<URI>` alias.
+Do not add a second dependency-conflict solver or repin RPClite and MsgPack in the platform.
+
+The pinned framework variant detects `routerbridge_provides_serial.h` and defines `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL` before RouterBridge declares and defines its `Serial` alias.
+Keep this framework/library capability check authoritative instead of forcing a platform-wide macro.
+The framework's devicetree selection also owns `ARDUINO_ROUTER_SERIAL`.
+Validate the default without a manual macro in multiple translation units and check that `Serial` and `Monitor` share one instance.
 
 ### Resolution without a project environment
 

@@ -56,5 +56,10 @@
       "type": "tool",
       "version": "0.1.0-leelabskku+prebuilt"
     }
+  },
+  "libraries": {
+    "Arduino_RouterBridge": {
+      "version": "0.4.5-leelabskku"
+    }
   }
 }

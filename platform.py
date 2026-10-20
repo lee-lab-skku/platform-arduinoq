@@ -40,6 +40,14 @@ PACKAGE_URL_BASES = {
         "tools%2Fzephyr-check-size%2F{release}/"
     ),
 }
+# Libraries use their own published tags, including the complete version.
+# They are installed per project environment by Core's Library Manager.
+LIBRARY_URL_BASES = {
+    "Arduino_RouterBridge": (
+        "https://github.com/lee-lab-skku/arduino-router-bridge/"
+        "releases/download/v{version}/"
+    ),
+}
 HOST_SPECIFIC_PACKAGES = frozenset(PACKAGE_URL_BASES) - {
     "framework-arduino-zephyr"
 }
@@ -75,6 +83,35 @@ DEBUG_INIT_CMDS = (
 )
 
 class ArduinoqPlatform(PlatformBase):
+    @property
+    def libraries(self):
+        """Return resolved library copies, preserving the manifest's pins."""
+        resolver = self._load_module(
+            "builder", "arduinoq_common", "library_dependencies.py"
+        )
+        try:
+            return resolver.resolve(self.manifest.get("libraries", {}), LIBRARY_URL_BASES)
+        except ValueError as exc:
+            raise UserSideException(str(exc)) from exc
+
+    def configure_project_packages(self, env, targets=None):
+        # Core calls this before installing lib_deps, and again in SCons.
+        # Use the shared in-memory config so both paths see the same defaults;
+        # saving it would unexpectedly modify the user's project file.
+        super().configure_project_packages(env, targets)
+        section = "env:%s" % env
+        frameworks = self.config.get(section, "framework", [])
+        if not any(item.strip().lower() == "arduino" for item in frameworks):
+            return
+        resolver = self._load_module(
+            "builder", "arduinoq_common", "library_dependencies.py"
+        )
+        dependencies = self.config.get(section, "lib_deps", [])
+        self.config.set(
+            section, "lib_deps",
+            resolver.merge(dependencies, self.libraries, os.path.dirname(self.config.path)),
+        )
+
     def configure_default_packages(self, options, targets):
         # Core consumes clean targets before entering the platform builder.
         # Validate here so a mixed request cannot clean or operate the board.
