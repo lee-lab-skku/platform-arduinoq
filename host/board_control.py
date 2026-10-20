@@ -95,8 +95,8 @@ class BoardControl:
         self.layout = openocd_layout.resolve(openocd_dir)
 
     @classmethod
-    def from_board_config(cls, board_config):
-        return cls(board_config.get("upload.openocd_dir", "") or None)
+    def from_board_config(cls, board_config, platform):
+        return cls(openocd_layout.resolve_from_board(board_config, platform).root)
 
     @property
     def openocd_dir(self):

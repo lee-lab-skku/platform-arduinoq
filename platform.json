@@ -55,6 +55,11 @@
     "tool-zephyrchecksize": {
       "type": "tool",
       "version": "0.1.0-leelabskku+prebuilt"
+    },
+    "tool-openocd-arduinoq": {
+      "type": "tool",
+      "optional": true,
+      "version": "0.12.1-leelabskku.unoq+prebuilt"
     }
   },
   "libraries": {

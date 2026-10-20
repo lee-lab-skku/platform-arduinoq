@@ -14,10 +14,6 @@
 from collections import namedtuple
 from os.path import isfile, join
 
-# OpenOCD build shipped in the Arduino UNO Q MPU image. Override per project
-# with "board_upload.openocd_dir" in platformio.ini.
-DEFAULT_OPENOCD_DIR = "/opt/openocd"
-
 # Relative to the OpenOCD root. The executable and the Linux GPIO interface
 # configuration are both required, so that an installation without gpiod
 # support is rejected by name here rather than failing later inside OpenOCD:
@@ -34,8 +30,15 @@ OpenOcdLayout = namedtuple(
 
 
 def resolve(openocd_dir=None):
-    """Layout of an OpenOCD installation, defaulting to the MPU's own."""
-    root = openocd_dir or DEFAULT_OPENOCD_DIR
+    """Layout of the selected package or explicit project installation."""
+    if not openocd_dir:
+        raise RuntimeError(
+            "No OpenOCD installation selected. The platform supplies "
+            "tool-openocd-arduinoq on the Linux AArch64 MPU; from a "
+            "workstation, use 'pio remote'. For an external installation, "
+            "set 'board_upload.openocd_dir' in platformio.ini."
+        )
+    root = openocd_dir
     return OpenOcdLayout(
         root=root,
         binary=join(root, OPENOCD_BINARY),
@@ -44,9 +47,10 @@ def resolve(openocd_dir=None):
     )
 
 
-def resolve_from_board(board_config):
+def resolve_from_board(board_config, platform):
     """Layout for a board, honouring "board_upload.openocd_dir"."""
-    return resolve(board_config.get("upload.openocd_dir", "") or None)
+    root = board_config.get("upload.openocd_dir", "")
+    return resolve(root or platform.get_package_dir("tool-openocd-arduinoq"))
 
 
 def missing_files(layout):

@@ -20,6 +20,10 @@ LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 # follow one pattern and are assembled by the resolver from the package name and
 # the complete version in platform.json, including prerelease/build metadata.
 PACKAGE_URL_BASES = {
+    "tool-openocd-arduinoq": (
+        "https://github.com/lee-lab-skku/OpenOCD/releases/download/"
+        "{release}-arduino.unoq/"
+    ),
     "toolchain-gccarmzephyreabi": (
         "https://github.com/lee-lab-skku/sdk-ng/releases/download/v{release}/"
     ),
@@ -125,13 +129,9 @@ class ArduinoqPlatform(PlatformBase):
         return super().configure_default_packages(options, targets)
 
     def is_embedded(self):
-        # PlatformBase derives this from the presence of a package declared
-        # with type "uploader", which PlatformIO then force-installs for any
-        # target whose name contains "upload" -- ignoring "optional".
-        #
-        # PlatformIO reads this for the linker "cyclic reference" workaround
-        # (--start-group/--end-group), IDE target listing, and unit-test and
-        # debug session behaviour.
+        # Core derives this from uploader packages. OpenOCD is declared as a
+        # tool to avoid forced installation on x86_64 upload orchestration;
+        # keep embedded linking, test, IDE, and debug behavior on both hosts.
         return True
 
     @property
@@ -193,6 +193,11 @@ class ArduinoqPlatform(PlatformBase):
                 if name in HOST_SPECIFIC_PACKAGES
                 else name
             )
+            # Only the MPU has a supplied OpenOCD binary. Keep it selected
+            # even in upload-only mode, where Core disables ordinary tools.
+            # Explicit platform_packages overrides retain Core's selection.
+            if name == "tool-openocd-arduinoq":
+                packages[name]["optional"] = systype != "linux_aarch64"
             packages[name]["version"] = "%s%s-%s.tar.gz" % (
                 urlbase.format(release=release),
                 asset_name,
@@ -245,10 +250,12 @@ class ArduinoqPlatform(PlatformBase):
                 "board_upload.openocd_dir",
                 openocd_dir,
             )
-        return board_control.BoardControl(openocd_dir or None)
+        return board_control.BoardControl.from_board_config(
+            {"upload.openocd_dir": openocd_dir}, self
+        )
 
     def configure_debug_session(self, debug_config):
-        """Point PlatformIO's debug session at the board's own OpenOCD.
+        """Point PlatformIO's debug session at the selected OpenOCD installation.
 
         PlatformBase raises NotImplementedError here, which DebugConfigBase
         swallows, so without this the session would start with no server at

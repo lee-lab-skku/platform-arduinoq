@@ -30,7 +30,9 @@ A non-Linux workstation can still be used, through PlatformIO's remote mode with
 See [Remote builds](#remote-builds).
 
 **Flashing and debugging happen on the MPU**, over its GPIO lines through OpenOCD's `linuxgpiod` driver.
-The platform uses the OpenOCD installation shipped in the board image, at `/opt/openocd` by default.
+On the AArch64 MPU, the platform installs and uses its pinned `tool-openocd-arduinoq` package, including the matching GPIO and target configurations.
+This package requires the MPU system libraries `libgpiod.so.3` and glibc 2.38 or newer; it does not supply Arduino Router.
+Build-only x86_64 hosts do not install OpenOCD.
 An alternative installation must have `linuxgpiod` support enabled and include the board's `openocd_gpiod.cfg` interface configuration.
 The driver is available in [upstream OpenOCD](https://openocd.org/doc/html/Debug-Adapter-Configuration.html), but its availability in a particular build depends on the build configuration.
 
@@ -204,7 +206,7 @@ Use `pio run -v -e uno_q -t reset` (or `halt` / `release`) to include normal Ope
 `release` does not perform a reset and does not print a reset completion notice.
 
 The selected environment supplies the board and `board_upload.openocd_dir`.
-The operations use the MPU's GPIO connection and require its OpenOCD installation and running `arduino-router.service`.
+The operations use the MPU's GPIO connection and require the selected OpenOCD installation and running `arduino-router.service`.
 `halt` resets before halting; it does not merely pause the current execution.
 `reset` does not release a sketch packed for `app` startup: use `release` afterward when you want it to leave the loader.
 
@@ -249,7 +251,9 @@ Early `Serial` output can be lost if the sketch starts before the bridge is read
 
 ### `board_upload.openocd_dir`
 
-Selects an alternative OpenOCD installation.
+Selects an external OpenOCD installation instead of the platform package, for uploads, board control, test startup, and debugging.
+For example, `board_upload.openocd_dir = /opt/openocd` selects the board-image installation explicitly.
+The platform never silently falls back to that path if its package is missing.
 It must have Linux GPIO support and `openocd_gpiod.cfg` at its root; both are checked, and a missing one is reported by name.
 
 ### `test_port`
