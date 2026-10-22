@@ -20,6 +20,9 @@ LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 # follow one pattern and are assembled by the resolver from the package name and
 # the complete version in platform.json, including prerelease/build metadata.
 PACKAGE_URL_BASES = {
+    "tool-arduinoq-host": (
+        "https://github.com/lee-lab-skku/arduinoq-host-tools/releases/download/v{release}/"
+    ),
     "tool-openocd-arduinoq": (
         "https://github.com/lee-lab-skku/OpenOCD/releases/download/"
         "{release}-arduino.unoq/"
@@ -193,10 +196,10 @@ class ArduinoqPlatform(PlatformBase):
                 if name in HOST_SPECIFIC_PACKAGES
                 else name
             )
-            # Only the MPU has a supplied OpenOCD binary. Keep it selected
+            # MPU tools are supplied only on AArch64. Keep them selected
             # even in upload-only mode, where Core disables ordinary tools.
             # Explicit platform_packages overrides retain Core's selection.
-            if name == "tool-openocd-arduinoq":
+            if name in ("tool-openocd-arduinoq", "tool-arduinoq-host"):
                 packages[name]["optional"] = systype != "linux_aarch64"
             packages[name]["version"] = "%s%s-%s.tar.gz" % (
                 urlbase.format(release=release),
