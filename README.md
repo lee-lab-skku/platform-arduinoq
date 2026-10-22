@@ -431,3 +431,36 @@ This platform flashes and resets physical hardware; review changes and validate 
 Apache License 2.0 &mdash; see [LICENSE.txt](LICENSE.txt), including its warranty disclaimer.
 
 Packages this platform installs carry their own licenses: `framework-arduino-zephyr` derives from Arduino's ArduinoCore-zephyr, `toolchain-gccarmzephyreabi` from the Zephyr Project's SDK.
+
+## OS Router preparation
+
+On Linux AArch64 the platform supplies `tool-arduinoq-host`, maintained in the separate `arduinoq-host-tools` repository.
+From any directory on the official UNO Q MPU, run:
+
+```console
+pio pkg exec -- arduinoq router status
+pio pkg exec -- arduinoq router setup
+```
+
+The tool owns the fixed official Router `.deb` requirement and OS setup implementation; this platform pins the compatible tool version.
+The host tool's README is the canonical reference for installation, permissions, command results and recovery behavior.
+Setup is explicit and may restart Router and reset the MCU; ordinary platform installation/build/upload/test/debug does not invoke it.
+OpenOCD remains a separate platform package, and Python application dependencies remain application-owned.
+Use SSH to execute `pkg exec` on the MPU; it is independent of `pio remote run`.
+
+The planned host-tool asset is in `lee-lab-skku/arduinoq-host-tools` under `v0.1.0`.
+Until the remote and asset are published, install a locally packed archive on the MPU:
+
+```console
+pio pkg install -g -t file:///absolute/path/tool-arduinoq-host-linux_aarch64-0.1.0.tar.gz
+```
+
+For platform project validation, override the unpublished default URL:
+
+```ini
+platform_packages =
+    tool-arduinoq-host@file:///absolute/path/tool-arduinoq-host-linux_aarch64-0.1.0.tar.gz
+```
+
+Select an exact package with `pio pkg exec -p '<package specification>' -- arduinoq router status` when comparing multiple installed versions.
+The short form uses PlatformIO's first matching installed executable.

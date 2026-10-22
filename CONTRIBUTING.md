@@ -320,8 +320,13 @@ That attempted fix was reverted because it caused an infinite loop in `Unpacker:
 Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordination-contract) that protects reader attachment rather than substituting framing changes for reset coordination.
 Revisit this only with evidence that the protocol or parser behavior has changed.
 
-## Deferred decisions
+## OS Router host tool
 
-- **MPU host package management:** Arduino Router and other system dependencies remain managed by the board OS.
-  Consider pinning tested versions before introducing platform packages for them.
-  Router 0.10.0 is not an established fix for the startup-output issue.
+`tool-arduinoq-host` is maintained and packaged in the separate `arduinoq-host-tools` repository.
+This platform owns the compatible tool pin, release URL expansion and AArch64 selection; do not duplicate its Router requirement or implementation here.
+The planned release URL is `lee-lab-skku/arduinoq-host-tools/releases/download/v<version>/`; use a local archive override while unpublished.
+
+Check Core 6.1.19 and 6.2.0, both host selections, explicit overrides and project-free installation dispatch.
+Host-tool unit tests and the live APT probe belong to its source repository.
+Validate MCU upload/control/test/debug against the selected OS Router.
+Platform installation and build actions must never invoke host setup or alter OS services.
