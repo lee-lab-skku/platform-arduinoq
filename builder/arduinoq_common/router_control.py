@@ -10,6 +10,7 @@ import sys
 import time
 
 
+DEFAULT_SERIAL_PORT = "/dev/ttyHS1"
 RPC_TIMEOUT = 5.0
 OPEN_SETTLE_SECONDS = 1.0
 MAX_RESPONSE_BYTES = 4096
@@ -27,16 +28,19 @@ def _tcl_path(path):
     return "[format {%s} %s]" % ("%c" * len(value), " ".join(str(ord(c)) for c in value))
 
 
-def openocd_arguments(python):
+def openocd_arguments(python, serial_port=DEFAULT_SERIAL_PORT, transport="uart"):
     """Load reset coordination before init, also in the unfiltered GDB server.
 
     Encoded Tcl words preserve paths without embedded quotes, which Core can
     otherwise break when flattening debugger arguments into a shell string.
     """
+    if transport not in ("uart", "usb"):
+        raise RouterError("Unsupported Router transport: %s" % transport)
     script = Path(__file__).resolve()
-    words = [_tcl_path(p) for p in (python, script)]
+    words = [_tcl_path(p) for p in (python, script, "--port", serial_port)]
     return [
         "-c", "set arduinoq_router_command [list %s]" % " ".join(words),
+        "-c", "set arduinoq_router_reconnect %d" % (transport == "uart"),
         "-f", str(script.with_name("openocd_router.tcl")),
     ]
 
@@ -127,14 +131,14 @@ def wait_until_ready():
     time.sleep(OPEN_SETTLE_SECONDS)
 
 
-def reconnect():
+def reconnect(serial_port=DEFAULT_SERIAL_PORT):
     """Close, reopen, then wait while the caller keeps the MCU halted.
 
     Failure propagates so the reset coordinator does not resume the target.
     No Router restart, GPIO readiness change, or monitor disconnection is made.
     """
     path = os.environ.get("ARDUINO_ROUTER_SOCKET", "/var/run/arduino-router.sock")
-    port = os.environ.get("ARDUINOQ_ROUTER_SERIAL_PORT", "/dev/ttyHS1")
+    port = os.environ.get("ARDUINOQ_ROUTER_SERIAL_PORT", serial_port)
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
             connection.settimeout(RPC_TIMEOUT)
@@ -147,8 +151,12 @@ def reconnect():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", default=DEFAULT_SERIAL_PORT)
+    args = parser.parse_args()
     try:
-        reconnect()
+        reconnect(args.port)
     except RouterError as exc:
         print("Error: %s" % exc, file=sys.stderr)
         sys.exit(1)
