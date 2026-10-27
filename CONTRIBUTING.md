@@ -155,52 +155,33 @@ Debug takes precedence for a debug test session because a loader breakpoint alre
 Keep boot-mode packing and host startup control consistent.
 An `app` image waits for a separate SRAM release; ordinary uploading supplies that release, while a plain reset does not.
 CPU resume and app release must remain distinct operations.
-The test reader must complete reset and Router cleanup before attaching its monitor, and keep the MCU halted until attachment succeeds.
-This protects initial output in every boot mode; `app` adds a separate loader wait after CPU execution resumes.
+The test reader must complete reset before attaching its monitor, and keep the MCU halted until attachment succeeds.
+Ordinary uploads and resets do not attach a monitor.
+Transport handling is described under [Reset and Router coordination](#reset-and-router-coordination).
+Verify initial output separately for each transport and boot mode.
 
 ### Reset and Router coordination
 
 Use shared reset coordination for platform-owned host operations, framework uploads, and debugger resets, including resets during OpenOCD initialization.
-Keep coordination separate from output observation, and preserve the framework's flash policy and the board's target event handlers.
-A requested running reset must hold the MCU halted while the Router connection is renewed, then resume only after the readiness step succeeds.
-Target reset handlers therefore see a halted reset even when the caller requested a running outcome.
-Requests to remain halted must not resume; reset or reconnection failures must propagate without resuming or reporting success.
+Select the transport from the board configuration, respecting project overrides in every caller.
+Keep coordination separate from output observation, and preserve the framework's flash policy and target reset event handlers.
 
-Close the old Router serial connection and wait for its termination before reopening it through the separate host control channel.
-This discards incomplete decoder state already held by the Router; flushing the UART alone cannot do so.
-Preserve monitor connections and the Router service's GPIO readiness signal rather than restarting the service.
-Connection settings and overrides belong in [Troubleshooting](README.md#troubleshooting).
+Reset the MCU before handling its Router connection.
+A requested running reset must first halt the MCU, then resume only after the required transport handling succeeds.
+Requested halt outcomes must stay halted; reset or Router failures must propagate without resuming or reporting success.
 
-The open acknowledgement does not guarantee receive readiness.
-The current fixed delay is a provisional workaround: replace it with a reliable readiness check when available, retaining its position before MCU execution resumes.
-A monitor must also be attached before resume when initial output must be retained; ordinary uploads and resets do not create one.
+- **UART (UNO Q):** close the old Router serial connection, wait for it to terminate, then reopen it through the separate host control channel.
+  This discards incomplete Router decoder state that flushing the UART alone cannot clear.
+  Preserve monitor connections and the Router service's GPIO readiness signal rather than restarting the service.
+  The open acknowledgement does not guarantee receive readiness: retain the provisional fixed delay after open and before MCU resume until a reliable readiness check can replace it.
+- **USB CDC (Ventuno Q):** let reset disconnect the device, ending the old Router decoder and RPC registrations; Router reconnects when MCU execution restores USB.
+  Do not issue serial close/open while the device is absent: Router 0.11.0 can wait for USB while ignoring the close signal, deadlocking with a halted MCU.
+  Verify readiness through actual RPC/Serial responses after resume.
+
+Test monitor attachment and `app` release follow the [sketch startup contract](#sketch-startup-is-an-artifact-and-host-coordination-contract).
 External resets and custom debug servers are outside this coordination.
-
-Validate changes on the MPU with its actual OpenOCD build, covering upload, direct board control, test startup, and debugger resets.
-Check early output across boot modes and verify that failures leave execution halted.
-Host-only checks cannot establish UART readiness or hardware reset behavior.
-
-### Test startup-output corruption: considered resolved
-
-The [known issue](README.md#intermittent-test-startup-output-corruption) is considered resolved unless reported again, based on initial MPU testing in which reset coordination suppressed it.
-Retain the reset coordination workaround, including its provisional fixed reconnect delay; this status does not establish the root cause or guarantee receive readiness.
-The investigation context below is retained for any recurrence.
-Reported reproduction was sensitive to the length and grouping of early serial writes, but intermittent successes do not establish a fixed failing length or a reliable write-length workaround.
-Execution mode, Router version, USB attachment, and existing monitor clients have not been isolated as necessary or sufficient conditions.
-
-An RPC interrupted by MCU reset is a candidate mechanism, not an established hardware diagnosis.
-Local and remote test readers must follow the same startup ordering described above.
-The framework upload script independently releases the sketch before the reader resets it, leaving an interval in which the MCU can execute and initiate Bridge traffic even without a test monitor.
-The default remote path uploads with `nobuild`, preserving the already packed startup flag, and does not introduce a workstation round trip between upload and reader startup.
-Consider both the upload resets and the reader reset when tracing interrupted traffic.
-
-An incomplete `mon/write` string can consume raw startup text as its remaining payload and forward the mixed text to the monitor.
-This mechanism has been demonstrated with synthetic decoder input, but has not been confirmed by a hardware traffic capture.
-Neither a longer flush string nor a startup delay alone is a validated remedy.
-
-If the issue is reported again, reopen the investigation and correlate MCU traffic with upload release, reader reset, monitor connection, and reader release on the same board and image, recording host package versions and other monitor clients.
-To isolate the USB serial proxy, stop both `arduino-router-serial.path` and `arduino-router-serial.service`: the path unit can reactivate the service.
-Keep the main `arduino-router.service` running because it participates in MCU boot and communication.
+Validate changes on the MPU with its actual OpenOCD build across upload, direct board control, test startup, and debugger resets, covering early output in each boot mode and failures that must leave execution halted.
+Host-only checks cannot establish transport readiness or hardware reset behavior.
 
 ### Library ownership and compatibility
 
@@ -210,7 +191,7 @@ PlatformIO discovers libraries among each storage directory's children, so listi
 
 Keep the framework identifier `arduino` to retain compatibility with libraries declaring `frameworks=arduino` without requiring `lib_compat_mode=off`.
 This identifier does not guarantee that a library works with Zephyr.
-The user-facing compatibility limits belong in [Limitations](README.md#limitations).
+The user-facing compatibility limits belong in [Environment constraints](README.md#environment-constraints).
 
 ### Remote targets must remain available without rebuilding
 
@@ -228,9 +209,6 @@ Keep each package's complete semantic version, including prerelease and build me
 `PACKAGE_URL_BASES` in `platform.py` owns the repository and Git tag convention, with a `{release}` placeholder rather than a concrete version.
 A routine package version bump should change only `platform.json`.
 Change URL bases when a package moves repository or changes its tag convention.
-
-PlatformIO Core 6.1.19 limits package dependency `version` strings to 100 characters during manifest validation.
-The complete release asset URLs exceed that limit, so preserve separate version pins and URL expansion while supporting this Core version.
 
 Release assets use `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
 The `packages` property strips prerelease and build metadata when filling the release tag placeholder, but retains the complete version in the asset filename.
@@ -264,7 +242,7 @@ Validate the default without a manual macro in multiple translation units and ch
 ### Resolution without a project environment
 
 Resolve package URLs when Core reads `packages`, including during standalone installation, updates, and removal.
-In Core 6.1.19, `PlatformPackageManager.install()` calls `configure_project_packages()`, and therefore `configure_default_packages()`, only when a project environment is supplied.
+In Core 6.2.0, `PlatformPackageManager.install()` calls `configure_project_packages()`, and therefore `configure_default_packages()`, only when a project environment is supplied.
 Standalone `pio pkg install -g -p <platform>` and the deprecated `pio platform install <platform>` skip that hook and proceed to `install_required_packages()`.
 Expanding URLs only in the project hook therefore leaves standalone installation resolving nominal version pins from the registry instead of fetching release assets.
 The `packages` property must also supply resolved URLs for updates and removal without a project environment.
@@ -301,20 +279,15 @@ Keep the user-facing distinction in [Board resources](README.md#board-resources)
 
 ## Board integration constraints
 
-In the board environment used by this platform, `arduino-router.service` uses its `--after-ready` command to assert a GPIO readiness signal.
+The board-specific configuration of `arduino-router.service` asserts a GPIO readiness signal.
 The resident loader's `wait` and `app` modes check the level of its `control_gpios` input before loading the sketch.
 While that signal remains asserted, an MCU reset can pass the same readiness check without a new command from the Router.
 The `app` mode additionally waits for the backup SRAM release described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
-Keep this dependency visible in the user's [Troubleshooting](README.md#troubleshooting) guidance.
+Keep this dependency visible in the user-facing [README.md](README.md).
 
 Use the board image's OpenOCD installation as the integration baseline.
-The shipped executable comes from Arduino's fork, while the MCU configuration files come from ST's fork; validate them together when changing the integration.
-Do not rely on `adapter speed` to control the shipped `linuxgpiod` driver's speed.
 
-Do not use `0xC1` as a flush byte in RouterBridge's `bridge.h`.
-That attempted fix was reverted because it caused an infinite loop in `Unpacker::feed()`.
 Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordination-contract) that protects reader attachment rather than substituting framing changes for reset coordination.
-Revisit this only with evidence that the protocol or parser behavior has changed.
 
 ## Deferred decisions
 
