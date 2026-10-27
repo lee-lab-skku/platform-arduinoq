@@ -11,29 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Automatic installation of Arduino_RouterBridge 0.4.5-leelabskku for Arduino environments.
+- Support for Ventuno Q (`board = ventuno_q`), including sketch builds, uploads, board control, unit testing, and debugging through the MPU.
+- Automatic installation of `Arduino_RouterBridge 0.4.5-leelabskku` for Arduino environments.
 
 ### Changed
 
-- Raised the minimum PlatformIO Core requirement to 6.1.19.
-- Default packages now use prebuilt ArduinoCore-zephyr 1.0.0, Zephyr SDK 1.0.1, and matching helper tools.
+- Manual `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL` build flag is no longer required.
+- **Breaking:** Raised the minimum PlatformIO Core requirement to `6.2.0`.
+- Default packages now use prebuilt `ArduinoCore-zephyr 1.0.0`, `Zephyr SDK 1.0.1`, and matching helper tools.
   Updated C++ runtime linking and resident/sketch debug symbol handling for compatibility with the new packages.
-- Updated user and contributor documentation for remote device discovery, RouterBridge connections and monitoring, static analysis limitations, and Router readiness and sketch startup behavior, and added registry and commits-since badges to the README.
-- Clarified default package installation and runtime debugging support, including the limitation on backtraces through resident firmware.
-- Refined the platform description and framework title, added the official UNO Q homepage, and added discovery keywords to the platform metadata.
+- Updated user and contributor guidance for remote operation, sketch memory limits, platform support boundaries, and transport-specific reset coordination.
+- Refined the platform metadata.
 
 ### Fixed
 
 - PlatformIO integration metadata now expands framework compiler response files, preserving ordered C/C++ flags and exposing Zephyr include paths and shared final definitions without changing compilation or linking.
-- Platform-controlled resets now reconnect the Router UART while the MCU is halted, and test startup keeps execution halted until the output reader is connected.
-  Resets require access to the Router's serial connection controls and leave the MCU halted if reconnection fails; custom connection settings use `ARDUINO_ROUTER_SOCKET` and `ARDUINOQ_ROUTER_SERIAL_PORT` on the MPU.
-  Intermittent test startup-output corruption is considered resolved, with the provisional fixed reconnect delay retained and the underlying cause unconfirmed.
+- **Breaking:** Platform-controlled resets on UNO Q renew the Router UART connection while the MCU is halted and leave it halted if reconnection fails.
+  Custom connection settings use `ARDUINO_ROUTER_SOCKET` and `ARDUINOQ_ROUTER_SERIAL_PORT` on the MPU.
 
-### Removed
+  - Resets now require access to the Router control socket and support for its serial close/open commands.
 
-- Manual `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL` build flag is no longer required.
+- Test startup keeps the MCU halted until the output reader is connected.
 
-## [1.0.0-rc.4]
+## [1.0.0-rc.4] &mdash; 2026-09-18
 
 ### Added
 
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Build size checks use separate sketch limits of 256 KiB LLEXT RAM and 768 KiB flash while preserving nominal board metadata.
+- **Breaking:** Build size checks use separate sketch limits of 256 KiB LLEXT RAM and 768 KiB flash while preserving nominal board metadata.
   The `size` target now uses the same usage report and checks, with an error for flash overflow and a warning for RAM overflow.
 - Uploads and host board control share OpenOCD diagnostics, with normal tool logs requiring verbose output and expected verification mismatch diagnostics suppressed.
   Framework scripts retain control of verification and writing; logs discarded by the framework cannot be recovered.

@@ -64,9 +64,10 @@ class ArduinoqTestOutputReader(SerialTestOutputReader):
 
         # The board has no DTR/RTS line to toggle -- the base reader's reset
         # does nothing here, and would not work over a socket URL in any case.
-        # Reset and discard the old Router decoder before connecting. Keep
-        # the CPU halted until the monitor is attached: explicit wait/immediate
-        # builds can print as soon as execution resumes, unlike app builds.
+        # Reset using the board's transport policy. UART renewal completes
+        # here; USB decoder cleanup follows device disconnection. Keep the CPU
+        # halted until the monitor is attached: explicit wait/immediate builds
+        # can print as soon as execution resumes, unlike app builds.
         reset = not self.test_runner.options.no_reset and self.board_control
         if reset:
             self.board_control.halt()

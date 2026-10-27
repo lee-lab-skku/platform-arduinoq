@@ -12,6 +12,9 @@ proc ocd_process_reset {mode} {
 	# The native reset must succeed before touching the Router. A failed
 	# reconnect must propagate without resuming, even for a requested run.
 	# exec uses a Tcl list, not a shell; paths retain their argument boundaries.
-	eval exec $::arduinoq_router_command
+	# USB disconnect ends the Router decoder and its serial loop reconnects
+	# after MCU execution restores the device. Closing while it waits for
+	# that device deadlocks with a halted MCU (Router 0.11.0 waitForPort).
+	if {$::arduinoq_router_reconnect} {eval exec $::arduinoq_router_command}
 	if {$mode eq "run"} {resume}
 }

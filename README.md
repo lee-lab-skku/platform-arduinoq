@@ -5,7 +5,7 @@
 
 A PlatformIO development platform for Arduino's **Q series** &mdash; boards that pair a Linux application processor (the *MPU*) with a Zephyr-based microcontroller (the *MCU*).
 This platform builds a single Arduino sketch for the MCU.
-Only **UNO Q** support is currently implemented in this repository.
+It supports UNO Q and Ventuno Q.
 
 This is an **unofficial, independent platform**, not produced or endorsed by Arduino, the Zephyr Project, or PlatformIO Labs.
 "Arduino," "Zephyr," and "PlatformIO" name the projects this interoperates with; no affiliation is implied.
@@ -65,11 +65,11 @@ These package versions do not change the platform release version or the pins in
 
 ## Quick start
 
-On the MPU, create a project with the following `platformio.ini`:
+On the MPU of UNO Q, create a project with the following `platformio.ini`:
 
 ```ini
 [env:uno_q]
-platform = lee-lab-skku/arduinoq@1.0.0-rc.3
+platform = lee-lab-skku/arduinoq@1.0.0-rc.4
 board = uno_q
 framework = arduino
 
@@ -128,8 +128,6 @@ Use the `Arduino_RouterBridge=<URI>` alias when an arbitrary remote URL does not
 Other dependencies and their version resolution follow PlatformIO's normal library rules.
 The platform's qualified combination is its default pin; an override selects a different combination.
 This does not rewrite `platformio.ini` or add another platform pin for RPClite or MsgPack.
-
-`Serial1` provides hardware UART access on `D0`/`D1`.
 
 ### RouterBridge connection
 
@@ -249,8 +247,9 @@ Early `Serial` output can be lost if the sketch starts before the bridge is read
 
 ### `board_upload.openocd_dir`
 
-Selects an alternative OpenOCD installation.
-It must have Linux GPIO support and `openocd_gpiod.cfg` at its root; both are checked, and a missing one is reported by name.
+Selects an alternative OpenOCD installation for uploads, board control, test startup, and debugging; the default remains `/opt/openocd` from the board image.
+Keep the board-specific executable or launcher, its shared libraries, `openocd_gpiod.cfg`, and target scripts together.
+The platform checks for `bin/openocd` and `openocd_gpiod.cfg` and reports a missing file by name; the installation must provide Linux GPIO support.
 
 ### `test_port`
 
@@ -272,7 +271,7 @@ Without `-r`/`--force-remote`, the build runs on the *workstation* and only the 
 `pio remote run -t checklink -t upload` is supported.
 The link check runs during the build; the upload-only remote step does not repeat it.
 
-`pio remote device list` lists serial ports exposed by the MPU; it does not discover the UNO Q's MCU through this platform.
+`pio remote device list` lists serial ports exposed by the MPU; it does not identify an MCU upload target through this platform.
 MCU uploads use GPIO/OpenOCD, and test output uses the RouterBridge socket, so an MCU entry in the remote device list is not required for remote uploads or tests.
 Exposing the MCU as a remote device would require additional integration with the Remote Agent beyond the development platform itself.
 
@@ -307,12 +306,13 @@ class CustomTestRunner(UnityTestRunner):
 ```
 
 `UnityTestRunner` supplies result parsing and suite completion.
+Projects with their own `unity_config.h` or `test_transport = custom` retain responsibility for their output hooks.
 The skip guard also keeps the reader from running during the local build phase of `pio remote test`.
 Projects with an existing custom parser can use the same `stage_testing()` method in their runner while keeping their parsing and completion handling.
 
-A test run resets the board and refreshes its serial connection, keeping the MCU paused until the output reader is connected.
+A test run resets the board and keeps the MCU paused until the output reader is connected.
 Test builds default to `app` boot mode (see [`board_build.boot_mode`](#board_buildboot_mode)).
-This ordering addresses reader-attachment races; [intermittent startup-output corruption](#intermittent-test-startup-output-corruption) is considered resolved unless reported again, with the reset workaround retained.
+This ordering addresses reader-attachment races.
 
 With `--no-reset`, the reader does not reset the board or release the sketch; a sketch packed for `app` boot mode is then still parked in the loader, so pair that option with an explicit `board_build.boot_mode`.
 
@@ -321,97 +321,40 @@ The reader also applies a silence timeout between lines of output.
 
 If a test binary crashes on entry, Unity's `setjmp`/`longjmp` support does not survive this environment &mdash; build tests with `-DUNITY_EXCLUDE_SETJMP_H`.
 
-## Troubleshooting
-
-**`arduino-router.service` must be running on the MPU.**
-It relays `Serial` and asserts the readiness signal that the resident loader checks in `wait` and `app` boot modes.
-The loader checks the signal's current level after each MCU reset; the service does not need to send a new command for each reset.
-Check the service status when the sketch does not start or serial communication fails unexpectedly.
-
-Platform-controlled resets require access to the Router's serial connection controls.
-If reconnection fails, the operation stops with the MCU halted; check the Router service and connection settings before retrying.
-The default socket is `/var/run/arduino-router.sock` (`ARDUINO_ROUTER_SOCKET`), and the default Router serial port is `/dev/ttyHS1` (`ARDUINOQ_ROUTER_SERIAL_PORT`).
-If overridden, set these environment variables on the MPU running PlatformIO or its remote agent, with the serial port matching the Router's configured path exactly.
-
 ## Board resources
 
-The UNO Q's STM32U585 MCU has a Cortex-M33 core with a single-precision FPU and a nominal clock of 160 MHz.
-The board metadata shows the chip's nominal capacities, while the resident firmware allocates smaller regions to sketches:
+Board listings show the MCU's total flash and SRAM.
+The resident firmware runs Zephyr and loads the sketch into dedicated regions, so only part of that capacity is available to the sketch.
+Your sketch must fit within the allocations provided by the pinned framework:
 
-| Resource | Nominal MCU capacity | Sketch allocation |
+| Board | Sketch flash | Sketch RAM (LLEXT heap) |
 | --- | --- | --- |
-| Flash | 2 MiB (2,097,152 bytes) | 768 KiB `user_sketch` partition |
-| SRAM | 786 KiB (804,864 bytes) | 256 KiB LLEXT heap |
+| UNO Q | 768 KiB | 256 KiB |
+| Ventuno Q | 1 MiB | 256 KiB |
 
-The [STM32U585 specifications](https://www.st.com/en/microcontrollers-microprocessors/stm32u585ai.html) include 2 KiB of backup SRAM in the nominal SRAM total, with ECC disabled.
-These figures describe MCU memory, not the MPU's Linux RAM or eMMC storage.
+The build summary and `pio run -t size` report usage against these sketch limits.
+Exceeding the flash limit fails the build; exceeding the RAM limit produces a warning and still requires reducing memory use.
+The RAM figure estimates the loaded sketch's footprint from its ELF file; check additional runtime memory use separately, because a successful build does not guarantee that the sketch will fit at runtime.
 
-A sketch is loaded into resident firmware, so the full chip capacity is not available to it.
-The size tool reports the packed sketch's flash usage and its LLEXT heap footprint.
-Both the build summary and `pio run -t size` compare these figures with the sketch allocations above, while board listings show nominal MCU capacities.
-Exceeding the sketch flash allocation fails the size check; exceeding the LLEXT RAM allocation produces a warning.
-The RAM figure is an ELF-based estimate of LLEXT usage, not a measurement of peak runtime memory use.
-`checklink` checks symbol resolution separately and does not enforce these allocations.
+## Support boundaries
 
-## Known issues
-
-This section tracks known test issues, their current status, and limitations of PlatformIO Core's remote orchestration.
-
-### Intermittent test startup-output corruption
-
-**Status: considered resolved unless reported again.**
-Refreshing the Router connection while the MCU is halted during reset has suppressed the issue in initial MPU testing.
-This remains a workaround: it uses a fixed reconnect delay rather than confirming that reception is ready, and the underlying cause remains unconfirmed.
-
-During non-forced `pio remote test` runs, parts of the opening banners were observed truncated or joined with other output, sometimes including `MCU starting RPC Bridge communication` fragments.
-The affected fragment and reproduction frequency varied; a recurrence need not include the Bridge message.
-The issue has been reproduced with platform rc.3 and rc.4, and updating Arduino Router from 0.9.0 to 0.10.0 did not fully resolve it.
-
-Local testing and `--force-remote` did not reproduce it in the initial comparisons, but those observations do not establish that either mode is unaffected.
-
-### Only the last test suite runs under `pio remote test`
-
-When a project defines multiple test suites, a non-forced remote test run executes only the last one.
-This is a long-standing issue in PlatformIO Core's remote orchestration; the upstream guidance is to use `--force-remote`.
-
-### "Building & uploading" is printed on upload-only runs
-
-In a non-forced remote run the local leg has already built the project, and the remote leg receives `nobuild`.
-The "Building & uploading" label can still appear during this upload-only step; it does not indicate that the board is rebuilding the project.
-
-### The local leg reports 0 tests
-
-A non-forced remote test splits into a local build leg and a remote execution leg.
-The local leg only builds, so it has no results to report and prints a zero count.
-The real result comes from the remote leg.
-
-### Recommendation
-
-If a remote test produces output or a result count that does not match expectations, re-run with `-r` (`--force-remote`) before investigating further.
-Running the test directly on the MPU is also a useful reference point.
-
-## Limitations
-
-### Static analysis
-
-With the currently pinned framework package, static analysis tools may fail to resolve some symbols or expand macros in framework and toolchain headers, even when the sketch builds successfully.
-Use `pio check -v` to inspect parsing errors; a `PASSED` result alone does not guarantee complete analysis.
-
-If package headers prevent analysis, consider `pio check --skip-packages` or `check_skip_packages = yes` in the project's environment.
-This excludes package include paths from analysis without changing the build, but can reduce analysis coverage and accuracy for code that depends on those headers.
-
-### Debugging
-
-Sketch source breakpoints, stepping, and local and global variable inspection are supported on the MPU.
-Backtraces through the resident firmware may stop before unwinding the full call stack.
+The limits below distinguish this platform's support scope from constraints imposed by its framework, libraries, and tools.
 
 ### Platform support
 
-- **Only the dynamic (relocatable LLEXT) link mode is supported.**
-- **Arduino library compatibility is best-effort.**
-  The `arduino` framework identifier allows discovery of Arduino libraries, but libraries that depend on AVR/SAM internals or conflict with Zephyr symbols may fail.
+- **Sketch linking:** only dynamic (relocatable LLEXT) linking is supported.
+- **Debugger host:** direct debugging from a separate PC is not supported; the debugger must run on the MPU.
+- **Resident backtraces:** unwinding through the resident firmware may stop before reaching the full call stack.
+
+### Environment constraints
+
+- **Ventuno firmware:** the pinned framework's Ventuno variant lacks dynamic interrupt registration and an enabled `counter_servo` device.
+  Enabling these requires replacement resident firmware and a matching LLEXT EDK; sketch build flags cannot enable them.
+- **Arduino library compatibility:** libraries that depend on AVR/SAM internals or conflict with Zephyr symbols may fail even when they declare Arduino compatibility.
   Check whether each library supports the board and its Zephyr-based core.
-- **Only the UNO Q is implemented** at present.
+- **Static analysis:** tools may fail to parse the pinned framework and toolchain headers even when the sketch builds successfully.
+  Inspect parsing errors with `pio check -v`; a `PASSED` result alone does not guarantee complete analysis.
+  Use `pio check --skip-packages` or `check_skip_packages = yes` to exclude package headers if needed, at the cost of reduced analysis coverage.
 
 ## Contributing
 

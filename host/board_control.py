@@ -11,8 +11,9 @@
 # builder/arduinoq_common/openocd_layout.py, which is what actually keeps
 # them in step.
 #
-# Board control uses the MPU's GPIO lines; resets also recycle the local
-# Router UART connection. Both operations must run on the MPU itself.
+# Board control uses the MPU's GPIO lines and the board's transport policy.
+# UART connections are recycled while halted; USB reconnects after resume.
+# These operations must run on the MPU itself.
 
 import sys
 from os.path import abspath, dirname, join
@@ -91,12 +92,18 @@ class BoardControl:
     to know the OpenOCD invocation or where the installation lives.
     """
 
-    def __init__(self, openocd_dir=None):
+    def __init__(self, openocd_dir=None, router_serial_port=router_control.DEFAULT_SERIAL_PORT, router_transport="uart"):
         self.layout = openocd_layout.resolve(openocd_dir)
+        self.router_serial_port = router_serial_port
+        self.router_transport = router_transport
 
     @classmethod
     def from_board_config(cls, board_config):
-        return cls(board_config.get("upload.openocd_dir", "") or None)
+        return cls(
+            openocd_layout.resolve_from_board(board_config).root,
+            board_config.get("upload.router_serial_port", router_control.DEFAULT_SERIAL_PORT),
+            board_config.get("upload.router_transport", "uart"),
+        )
 
     @property
     def openocd_dir(self):
@@ -137,7 +144,7 @@ class BoardControl:
         if gdb_port:
             setup.append("gdb_port %d" % gdb_port)
         argv = self.arguments(quiet=False)
-        argv += router_control.openocd_arguments(sys.executable)
+        argv += router_control.openocd_arguments(sys.executable, self.router_serial_port, self.router_transport)
         for command in setup + list(commands):
             argv += ["-c", command]
         return argv
@@ -147,7 +154,7 @@ class BoardControl:
         self.ensure_available()
         quiet = kwargs.get("quiet", True)
         argv = [self.openocd_binary] + self.arguments(quiet=quiet)
-        argv += router_control.openocd_arguments(sys.executable)
+        argv += router_control.openocd_arguments(sys.executable, self.router_serial_port, self.router_transport)
         # Load the observer before init/reset, without importing any build or
         # framework scripts. Debug servers keep their unfiltered startup path.
         argv += ["-f", openocd_output.OBSERVER_SCRIPT]
@@ -161,7 +168,7 @@ class BoardControl:
             )
 
     def reset(self, quiet=True):
-        """Reset, recycle the Router UART while halted, then let the target run."""
+        """Reset using the board's transport policy, then let the target run."""
         self.openocd("init", "reset run", "shutdown", quiet=quiet)
 
     def resume(self, quiet=True):
@@ -185,5 +192,5 @@ class BoardControl:
         )
 
     def halt(self, quiet=True):
-        """Reset and recycle the Router UART, leaving the target halted."""
+        """Reset using the board's transport policy, leaving the target halted."""
         self.openocd("init", "reset halt", "shutdown", quiet=quiet)

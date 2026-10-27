@@ -14,7 +14,7 @@
 from collections import namedtuple
 from os.path import isfile, join
 
-# OpenOCD build shipped in the Arduino UNO Q MPU image. Override per project
+# OpenOCD build shipped in the Arduino Q MPU image. Override per project
 # with "board_upload.openocd_dir" in platformio.ini.
 DEFAULT_OPENOCD_DIR = "/opt/openocd"
 

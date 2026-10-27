@@ -124,7 +124,11 @@ def _configure_upload_command():
                 "set filename1 {%s}" % "${SOURCES[0]}",
             ),
             quiet=not verbose,
-        ) + router_control.openocd_arguments(env.subst("$PYTHONEXE"))
+        ) + router_control.openocd_arguments(
+            env.subst("$PYTHONEXE"),
+            board.get("upload.router_serial_port", router_control.DEFAULT_SERIAL_PORT),
+            board.get("upload.router_transport", "uart"),
+        )
         + ["-f", join(common_dir, "openocd_events.tcl"), "-f", flash_config_path]
     )
 
