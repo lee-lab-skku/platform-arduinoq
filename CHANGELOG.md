@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.5] &mdash; 2026-10-27
+
 ### Added
 
 - Support for Ventuno Q (`board = ventuno_q`), including sketch builds, uploads, board control, unit testing, and debugging through the MPU.
@@ -95,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_port`, defaulting to the RouterBridge monitor socket, since the board exposes no serial device for port discovery to find.
 - Independently packaged toolchain, framework, and helper tools (`toolchain-gccarmzephyreabi`, `framework-arduino-zephyr`, `tool-zephyrsketch`, `tool-genrodatald`, `tool-zephyrchecksize`), resolved for `linux_x86_64` and `linux_aarch64` hosts from a single set of pinned versions.
 
-[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.5...HEAD
+[1.0.0-rc.5]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.4...v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.3...v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.1...v1.0.0-rc.2
