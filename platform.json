@@ -61,5 +61,16 @@
     "Arduino_RouterBridge": {
       "version": "0.4.5-leelabskku"
     }
+  },
+  "export": {
+    "include": [
+      "boards/**",
+      "builder/**",
+      "host/**",
+      "LICENSE.txt",
+      "platform.json",
+      "platform.py",
+      "README.md"
+    ]
   }
 }

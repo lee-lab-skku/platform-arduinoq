@@ -358,7 +358,7 @@ The limits below distinguish this platform's support scope from constraints impo
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development requirements, architectural constraints, and validation guidance.
+See [CONTRIBUTING.md](https://github.com/lee-lab-skku/platform-arduinoq/blob/main/CONTRIBUTING.md) for development requirements, architectural constraints, and validation guidance.
 
 ## AI assistance
 
