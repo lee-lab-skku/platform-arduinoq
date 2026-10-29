@@ -285,15 +285,18 @@ While that signal remains asserted, an MCU reset can pass the same readiness che
 The `app` mode additionally waits for the backup SRAM release described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
 Keep this dependency visible in the user-facing [README.md](README.md).
 
-Use the board image's OpenOCD installation as the integration baseline.
+Use the pinned OpenOCD package's executable and configuration files together.
+An explicit `board_upload.openocd_dir` selects an external installation for every platform-owned caller; a missing package must not silently select the board image.
+The package is required on Linux AArch64, including standalone installation and upload-only `nobuild` sessions, and optional on x86_64 build hosts.
+Keep its type `tool`: Core force-enables `uploader` packages for upload/program targets, regardless of their `optional` flag.
+Using `tool` leaves host-specific selection to this platform and avoids requesting an unavailable x86_64 binary during Remote upload orchestration.
+Retain the embedded-platform detection override for build, test, and debug behavior.
+Do not rely on `adapter speed` to control the shipped `linuxgpiod` driver's speed.
 
 Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordination-contract) that protects reader attachment rather than substituting framing changes for reset coordination.
 
 ## Deferred decisions
 
-- **MPU host package management:** consider OpenOCD packaging and version control for other host dependencies, including Arduino Router, together as a reproducibility concern.
-  For OpenOCD, consider providing a declared platform package containing a compatible executable and configuration set; retain the board-image installation until their provenance can be managed together.
-  Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.
-  Preserve that detection behavior if packaging changes.
-  For Arduino Router and other relevant host packages, first consider pinning tested versions rather than introducing platform packages for them.
-  These remain deferred options, not implemented dependencies or version requirements; Router 0.10.0 is not an established fix for the startup-output issue.
+- **MPU host package management:** Arduino Router and other system dependencies remain managed by the board OS.
+  Consider pinning tested versions before introducing platform packages for them.
+  Router 0.10.0 is not an established fix for the startup-output issue.

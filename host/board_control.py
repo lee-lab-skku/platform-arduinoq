@@ -98,9 +98,9 @@ class BoardControl:
         self.router_transport = router_transport
 
     @classmethod
-    def from_board_config(cls, board_config):
+    def from_board_config(cls, board_config, platform):
         return cls(
-            openocd_layout.resolve_from_board(board_config).root,
+            openocd_layout.resolve_from_board(board_config, platform).root,
             board_config.get("upload.router_serial_port", router_control.DEFAULT_SERIAL_PORT),
             board_config.get("upload.router_transport", "uart"),
         )

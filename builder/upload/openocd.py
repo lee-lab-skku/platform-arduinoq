@@ -6,11 +6,8 @@
 # board over OpenOCD: locating the OpenOCD installation, the board's OpenOCD
 # interface/target metadata, and the "upload" target definition.
 #
-# There is deliberately no OpenOCD PlatformIO package. Flashing needs a build
-# with Linux GPIO (gpiod) support, which the board image already provides;
-# declaring a package would collide with the
-# official platformio/tool-openocd, which has no gpiod interface.
-# See ArduinoqPlatform.is_embedded() in platform.py.
+# The platform supplies a pinned linuxgpiod-capable OpenOCD package on the MPU.
+# An explicit board_upload.openocd_dir takes precedence over that package.
 #
 # The flash configuration path comes from the framework adapter's export
 # (ARDUINO_ZEPHYR_FLASH_SKETCH_CONFIG) when it ran, and otherwise from the
@@ -72,7 +69,7 @@ def _resident_elf():
 
 
 def _openocd():
-    layout = openocd_layout.resolve_from_board(board)
+    layout = openocd_layout.resolve_from_board(board, platform)
     missing = openocd_layout.missing_files(layout)
     if missing:
         raise RuntimeError(
