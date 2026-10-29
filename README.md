@@ -1,7 +1,7 @@
 # Arduino Q: development platform
 
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/lee-lab-skku/platform/arduinoq.svg)](https://registry.platformio.org/platforms/lee-lab-skku/arduinoq)
-[![commits since latest](https://img.shields.io/github/commits-since/lee-lab-skku/platform-arduinoq/v1.0.0-rc.4/HEAD)](https://github.com/lee-lab-skku/platform-arduinoq/compare/v1.0.0-rc.4...HEAD)
+![commits since latest](https://img.shields.io/github/commits-since/lee-lab-skku/platform-arduinoq/latest/HEAD?include_prereleases&sort=semver)
 
 A PlatformIO development platform for Arduino's **Q series** &mdash; boards that pair a Linux application processor (the *MPU*) with a Zephyr-based microcontroller (the *MCU*).
 This platform builds a single Arduino sketch for the MCU.
@@ -69,7 +69,7 @@ On the MPU of UNO Q, create a project with the following `platformio.ini`:
 
 ```ini
 [env:uno_q]
-platform = lee-lab-skku/arduinoq@1.0.0-rc.4
+platform = lee-lab-skku/arduinoq
 board = uno_q
 framework = arduino
 
