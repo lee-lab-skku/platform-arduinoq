@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Published packages no longer include `CHANGELOG.md`, `CONTRIBUTING.md`, or Git metadata files.
+- Board names now identify the programmed MCU clearly.
+
+### Fixed
+
+- Packaging now uses an explicit inclusion list, so untracked local files can no longer enter the published package.
+
 ## [1.0.0-rc.5] &mdash; 2026-10-27
 
 ### Added
