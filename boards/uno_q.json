@@ -35,7 +35,7 @@
       }
     }
   },
-  "name": "Arduino Uno Q",
+  "name": "Arduino UNO Q (STM32U585 MCU side)",
   "upload": {
     "protocol": "linuxgpiod",
     "maximum_ram_size": 804864,

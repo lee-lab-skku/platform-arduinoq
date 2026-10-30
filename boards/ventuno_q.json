@@ -35,7 +35,7 @@
       }
     }
   },
-  "name": "Arduino Ventuno Q",
+  "name": "Arduino Ventuno Q (STM32H5F5 MCU side)",
   "upload": {
     "protocol": "linuxgpiod",
     "maximum_ram_size": 1572864,
