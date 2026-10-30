@@ -19,10 +19,13 @@ LLEXT_GDB_SCRIPT = ("host", "gdb", "llext.gdb")
 # Each package owns its repository and release-tag convention. Asset names do
 # follow one pattern and are assembled by the resolver from the package name and
 # the complete version in platform.json, including prerelease/build metadata.
+#
+# OpenOCD tags name the board payload as "<release>-arduino.<variant>". The
+# resolver takes {variant} from the pin's "leelabskku.<variant>" prerelease.
 PACKAGE_URL_BASES = {
     "tool-openocd-arduinoq": (
         "https://github.com/lee-lab-skku/OpenOCD/releases/download/"
-        "{release}-arduino.unoq/"
+        "{release}-arduino.{variant}/"
     ),
     "toolchain-gccarmzephyreabi": (
         "https://github.com/lee-lab-skku/sdk-ng/releases/download/v{release}/"
@@ -55,6 +58,10 @@ LIBRARY_URL_BASES = {
 HOST_SPECIFIC_PACKAGES = frozenset(PACKAGE_URL_BASES) - {
     "framework-arduino-zephyr"
 }
+# Packages under "mpu_packages" run on the board's Linux MPU and carry one pin
+# per board. The resolver treats this systype as the MPU; it cannot tell an
+# MPU from another Linux AArch64 host.
+MPU_SYSTYPE = "linux_aarch64"
 
 # Helper modules already loaded, keyed by absolute path. Module level rather
 # than per instance: the modules hold no state, loading one twice is pure
@@ -102,6 +109,9 @@ class ArduinoqPlatform(PlatformBase):
         # Core calls this before installing lib_deps, and again in SCons.
         # Use the shared in-memory config so both paths see the same defaults;
         # saving it would unexpectedly modify the user's project file.
+        # PlatformPackageManager calls this without setting project_env, which
+        # the package resolver needs to select board-specific MPU packages.
+        self.project_env = env
         super().configure_project_packages(env, targets)
         section = "env:%s" % env
         frameworks = self.config.get(section, "framework", [])
@@ -145,7 +155,8 @@ class ArduinoqPlatform(PlatformBase):
 
         Core skips configure_default_packages() for standalone installation.
         Resolving on package access also covers lookup, update, and removal
-        without a project environment.
+        without a project environment. MPU packages need a board and are
+        absent from those paths.
         """
         SUPPORTED_SYSTYPES = ("linux_x86_64", "linux_aarch64")
 
@@ -170,8 +181,9 @@ class ArduinoqPlatform(PlatformBase):
         # project overrides, and reuse them on subsequent accesses.
         if not hasattr(self, "_manifest_package_versions"):
             self._manifest_package_versions = {
-                name: self.manifest["packages"][name]["version"]
-                for name in PACKAGE_URL_BASES
+                name: options["version"]
+                for name, options in self.manifest["packages"].items()
+                if name in PACKAGE_URL_BASES
             }
 
         # PlatformIO applies platform_packages overrides through the same
@@ -183,28 +195,65 @@ class ArduinoqPlatform(PlatformBase):
             custom_package_names.add(self.pm.ensure_spec(name).name)
 
         packages = super().packages
-        for name, urlbase in PACKAGE_URL_BASES.items():
+        for name, version in self._manifest_package_versions.items():
             if name in custom_package_names:
                 continue
-            version = self._manifest_package_versions[name]
-            release = re.split(r"[-+]", version, maxsplit=1)[0]
-            asset_name = (
-                "%s-%s" % (name, systype)
-                if name in HOST_SPECIFIC_PACKAGES
-                else name
-            )
-            # Only the MPU has a supplied OpenOCD binary. Keep it selected
-            # even in upload-only mode, where Core disables ordinary tools.
-            # Explicit platform_packages overrides retain Core's selection.
-            if name == "tool-openocd-arduinoq":
-                packages[name]["optional"] = systype != "linux_aarch64"
-            packages[name]["version"] = "%s%s-%s.tar.gz" % (
-                urlbase.format(release=release),
-                asset_name,
-                version,
-            )
+            packages[name]["version"] = self._package_url(name, version, systype)
+
+        # MPU packages exist only for a project's board. Rebuild their entries
+        # on every access: Core switches tools off in upload-only mode, while
+        # the MPU leg of a Remote upload still needs them. Build-only hosts,
+        # including the workstation leg of a Remote run, never install them.
+        board = (
+            self.config.get("env:%s" % self.project_env, "board", None)
+            if self.project_env
+            else None
+        )
+        for name, versions in self.manifest.get("mpu_packages", {}).items():
+            if name in custom_package_names:
+                packages[name]["type"] = "tool"
+                packages[name]["optional"] = systype != MPU_SYSTYPE
+                continue
+            if not board:
+                packages.pop(name, None)
+                continue
+            if board not in versions:
+                raise UserSideException(
+                    "Package '%s' has no payload for board '%s'" % (name, board)
+                )
+            packages[name] = {
+                "type": "tool",
+                "optional": systype != MPU_SYSTYPE,
+                "version": self._package_url(
+                    name, versions[board], MPU_SYSTYPE
+                ),
+            }
 
         return packages
+
+    @staticmethod
+    def _package_url(name, version, systype):
+        release = re.split(r"[-+]", version, maxsplit=1)[0]
+        variant = re.fullmatch(r"[^-+]+-leelabskku\.([0-9A-Za-z-]+)(\+.*)?", version)
+        urlbase = PACKAGE_URL_BASES[name]
+        if "{variant}" in urlbase and not variant:
+            raise UserSideException(
+                "Cannot derive the release tag of '%s' from version '%s'; "
+                "expected '<release>-leelabskku.<variant>[+<build>]'"
+                % (name, version)
+            )
+        asset_name = (
+            "%s-%s" % (name, systype)
+            if name in HOST_SPECIFIC_PACKAGES
+            else name
+        )
+        return "%s%s-%s.tar.gz" % (
+            urlbase.format(
+                release=release, variant=variant.group(1) if variant else ""
+            ),
+            asset_name,
+            version,
+        )
 
     # -----------------------------------------------------------------------
     # Host-side services

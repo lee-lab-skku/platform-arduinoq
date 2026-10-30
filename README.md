@@ -30,9 +30,12 @@ A non-Linux workstation can still be used, through PlatformIO's remote mode with
 See [Remote builds](#remote-builds).
 
 **Flashing and debugging happen on the MPU**, over its GPIO lines through OpenOCD's `linuxgpiod` driver.
-On the AArch64 MPU, the platform installs and uses its pinned `tool-openocd-arduinoq` package, including the matching GPIO and target configurations.
-This package requires the MPU system libraries `libgpiod.so.3` and glibc 2.38 or newer; it does not supply Arduino Router.
-Build-only x86_64 hosts do not install OpenOCD.
+For a project on the Linux AArch64 MPU, the platform installs and uses the board's pinned `tool-openocd-arduinoq` package, including the matching GPIO and target configurations.
+The UNO Q payload uses the system `libgpiod.so.3`; the Ventuno Q payload includes its libgpiod and Jim Tcl libraries.
+Both depend on the MPU system runtime and neither supplies Arduino Router.
+Their GLIBC symbol requirements alone do not establish support for other OS images.
+Build-only x86_64 hosts do not install OpenOCD, and neither does a platform installation without a project.
+The platform recognizes the MPU only as a Linux AArch64 host, so another AArch64 Linux machine also installs the package for a Q project; flashing still requires the board.
 An alternative installation must have `linuxgpiod` support enabled and include the board's `openocd_gpiod.cfg` interface configuration.
 The driver is available in [upstream OpenOCD](https://openocd.org/doc/html/Debug-Adapter-Configuration.html), but its availability in a particular build depends on the build configuration.
 
@@ -61,7 +64,7 @@ To use a versioned release from the PlatformIO registry, follow [Quick start](#q
 
 Packages are resolved from GitHub release assets for the build host; the MPU selects `linux_aarch64` automatically.
 This revision uses prebuilt ArduinoCore-zephyr 1.0.0 and Zephyr SDK 1.0.1 packages.
-Framework, helper-tool and default library pins are maintained in [platform.json](platform.json); no `platform_packages` overrides are needed for the default package set.
+Framework, helper-tool, board-specific OpenOCD and default library pins are maintained in [platform.json](platform.json); no `platform_packages` overrides are needed for the default package set.
 RouterBridge and its dependencies are installed per project environment when resolving project dependencies, rather than during a project-free global platform installation.
 These package versions do not change the platform release version or the pins in earlier platform releases.
 
@@ -270,6 +273,8 @@ pio remote test -r                # builds and tests on the board
 
 Without `-r`/`--force-remote`, the build runs on the *workstation* and only the result ships to the board &mdash; on a non-Linux workstation, that local build is exactly what fails.
 **Use `-r` from Windows or macOS.**
+
+OpenOCD is installed where the upload runs, on the board, in both modes; the workstation build of a non-forced run does not install it.
 
 `pio remote run -t checklink -t upload` is supported.
 The link check runs during the build; the upload-only remote step does not repeat it.

@@ -213,8 +213,29 @@ Change URL bases when a package moves repository or changes its tag convention.
 Release assets use `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
 The `packages` property strips prerelease and build metadata when filling the release tag placeholder, but retains the complete version in the asset filename.
 For example, a pin such as `0.56.0-leelabskku+unoq` supplies `0.56.0` for `{release}` while keeping the complete pin in the filename.
+A URL base may also use `{variant}`, taken from a `<release>-leelabskku.<variant>` pin; OpenOCD tags its board payloads as `<release>-arduino.<variant>`.
+A pin without that form fails resolution instead of producing a guessed tag.
 The framework package is architecture-independent; toolchains and helper tools include `linux_x86_64` or `linux_aarch64` in their asset names.
 Explicit `platform_packages` overrides must bypass URL expansion.
+
+### Board-specific MPU packages
+
+The top-level `mpu_packages` field owns packages that run on the board's Linux MPU and need a payload per board.
+Each entry maps board IDs to complete versions.
+It is interpreted by this platform and kept out of Core's `packages` field, so no nominal version stands in for a board.
+
+The resolver adds an entry to `packages` only for a project environment whose board has a payload, as type `tool` with the `linux_aarch64` asset.
+It is required on Linux AArch64 and optional elsewhere; a board without a payload is an error.
+Without a project environment, as in standalone installation, update and removal, the package is absent.
+Rebuild the entry on every access: Core marks tools optional in `nobuild` mode, while the MPU leg of a non-forced Remote upload still needs them, and the workstation leg must not install them.
+An explicit `platform_packages` override keeps its specification but follows the same host rule.
+`PlatformPackageManager.install()` calls `configure_project_packages()` without setting `project_env`; the hook records it so installation selects the same board as the run.
+
+Both boards' payloads share one package name.
+Core 6.2.0 installs a resolved URL as a custom-named specification, which replaces an installed payload of that name instead of keeping both.
+Alternating board environments that share a storage directory therefore reinstall the selected payload; look it up through the resolved specification, not by installation directory name.
+
+When changing these packages, verify both boards in native, non-forced Remote and forced Remote uploads, and alternate board environments that share a storage directory.
 
 ### Platform-managed libraries
 
@@ -287,7 +308,7 @@ Keep this dependency visible in the user-facing [README.md](README.md).
 
 Use the pinned OpenOCD package's executable and configuration files together.
 An explicit `board_upload.openocd_dir` selects an external installation for every platform-owned caller; a missing package must not silently select the board image.
-The package is required on Linux AArch64, including standalone installation and upload-only `nobuild` sessions, and optional on x86_64 build hosts.
+The board's package is required for a project on Linux AArch64, including upload-only `nobuild` sessions; see [Board-specific MPU packages](#board-specific-mpu-packages).
 Keep its type `tool`: Core force-enables `uploader` packages for upload/program targets, regardless of their `optional` flag.
 Using `tool` leaves host-specific selection to this platform and avoids requesting an unavailable x86_64 binary during Remote upload orchestration.
 Retain the embedded-platform detection override for build, test, and debug behavior.
@@ -300,3 +321,6 @@ Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordina
 - **MPU host package management:** Arduino Router and other system dependencies remain managed by the board OS.
   Consider pinning tested versions before introducing platform packages for them.
   Router 0.10.0 is not an established fix for the startup-output issue.
+- **MPU identification:** [MPU packages](#board-specific-mpu-packages) treat any Linux AArch64 host as the MPU.
+  Before packaged OpenOCD, the board image's `/opt/openocd` effectively confined uploads to a Q MPU; the package now installs and passes its file checks on any AArch64 Linux host.
+  An explicit check of the running board's identity would also reject a project whose board differs from the hardware.
