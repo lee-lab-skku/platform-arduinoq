@@ -2,14 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 #
-# This is the PlatformIO integration adapter for the "arduino" framework
-# entry declared in platform.json. Together with
-# builder/arduinoq_common/arduino_zephyr_layout.py it owns all knowledge of the
-# internal directory layout of the "framework-arduino-zephyr" package. Every
-# other builder module (artifact generation, upload backend) must consume the
-# ARDUINO_ZEPHYR_* values exported below, or -- when this adapter did not run
-# at all, as in an upload-only session -- the shared resolver, instead of
-# re-deriving framework paths of its own.
+# PlatformIO integration adapter for the "arduino" framework entry declared in
+# platform.json. Together with builder/arduinoq_common/arduino_zephyr_layout.py
+# it owns the internal layout of the "framework-arduino-zephyr" package. Other
+# builder modules consume the ARDUINO_ZEPHYR_* values exported at the end of
+# this file, or the shared resolver when this adapter did not run; see
+# docs/build.md, "Framework paths must be available without a build".
 
 import sys
 from os.path import join
@@ -105,6 +103,7 @@ ADAPTATION_CXXFLAGS = ["-g"] + OPTIMIZATION_FLAGS + ["-std=gnu++17"]
 # therefore after the upstream response files -- the same position
 # upstream's recipes use, and the opposite of the optimisation level, which
 # has to stay ahead of them so the response file can still override it.
+# "-w" is upstream's default warning level (compiler.warning_flags).
 ADAPTATION_CCFLAGS = machine_flags + [
     "-w",
     "-fdata-sections",
@@ -158,6 +157,8 @@ env.Append(
     CFLAGS=ADAPTATION_CFLAGS + UPSTREAM_CFLAGS,
     CXXFLAGS=ADAPTATION_CXXFLAGS + UPSTREAM_CXXFLAGS + LLEXT_CXXFLAGS,
     CCFLAGS=ADAPTATION_CCFLAGS + UPSTREAM_CCFLAGS,
+    # Upstream's recipe defines; ARDUINO stands in for its IDE version, and
+    # _PICOLIBC_CTYPE_SMALL and the discovery phase come from its platform.txt.
     CPPDEFINES=[
         ("ARDUINO", 10607),
         "ARDUINO_ARCH_ZEPHYR",
@@ -194,11 +195,8 @@ env.Append(
     STATIC_CHECK_LINKFLAGS=STATIC_CHECK_LINKFLAGS,
 )
 
-# LDSCRIPT_PATH points at the dynamic-build LLEXT linker script
-# (build-dynamic.ld). builder/artifacts/zephyr-llext.py performs the actual
-# multi-pass dynamic link itself (temporary pass, gen-rodata-ld, final pass),
-# so it reads this value directly and injects "-T" / map-file arguments
-# per pass rather than relying on a single flag baked in here.
+# The dynamic-build LLEXT linker script (build-dynamic.ld). The artifact
+# module adds it with "-T" to each of its link passes itself.
 env.Replace(LDSCRIPT_PATH=dynamic_ldscript)
 
 # ---------------------------------------------------------------------------
@@ -206,6 +204,9 @@ env.Replace(LDSCRIPT_PATH=dynamic_ldscript)
 # ---------------------------------------------------------------------------
 
 env.BuildSources(join("$BUILD_DIR", "FrameworkArduinoVariant"), variant_dir)
+# Prepended so the core archive precedes the runtime libraries inside the
+# archive group; see docs/build.md, "C++ runtime linking must match the
+# framework recipe".
 env.Prepend(LIBS=[
     env.BuildLibrary(
         join("$BUILD_DIR", "FrameworkArduino"),
@@ -214,11 +215,7 @@ env.Prepend(LIBS=[
 ])
 
 # ---------------------------------------------------------------------------
-# Framework-to-platform contract
-#
-# Downstream modules (builder/artifacts/zephyr-llext.py,
-# builder/upload/openocd.py) must consume these resolved values instead of
-# rediscovering the framework package layout.
+# Framework paths exported to the artifact module and upload backend
 # ---------------------------------------------------------------------------
 
 env.Replace(

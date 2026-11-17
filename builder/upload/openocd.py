@@ -2,24 +2,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 #
-# OpenOCD upload backend. This module owns everything needed to flash the
-# board over OpenOCD: locating the OpenOCD installation, the board's OpenOCD
-# interface/target metadata, and the "upload" target definition.
+# OpenOCD upload backend: the board's OpenOCD invocation and the "upload"
+# target. The installation itself is located by
+# builder/arduinoq_common/openocd_layout.py.
 #
 # There is deliberately no OpenOCD PlatformIO package. Flashing needs a build
 # with Linux GPIO (gpiod) support, which the board image already provides;
-# declaring a package would collide with the
-# official platformio/tool-openocd, which has no gpiod interface.
-# See ArduinoqPlatform.is_embedded() in platform.py.
+# declaring a package would collide with the official platformio/tool-openocd,
+# which has no gpiod interface. See ArduinoqPlatform.is_embedded() in
+# platform.py.
 #
-# The flash configuration path comes from the framework adapter's export
-# (ARDUINO_ZEPHYR_FLASH_SKETCH_CONFIG) when it ran, and otherwise from the
-# shared layout resolver. That fallback is not optional: PlatformIO only
-# executes framework scripts from within ProcessProgramDeps(), which
-# builder/artifacts/zephyr-llext.py skips in "nobuild" mode, so an upload-only
-# session -- the MPU side of a default "pio remote run -t upload" -- never
-# sees that export. This module still never walks the framework package's
-# "variants" directory itself; it asks the resolver.
+# The flash configuration comes from the framework adapter's export when it
+# ran, and otherwise from the shared layout resolver, which upload-only
+# sessions need; see docs/build.md, "Framework paths must be available
+# without a build".
 
 from os.path import isfile, join
 

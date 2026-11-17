@@ -18,10 +18,8 @@
 import sys
 from os.path import abspath, dirname, join
 
-# Reach the shared helpers. Unlike platform.py, which loads the modules in
-# this package by path so as not to publish itself as "platform", putting
-# builder/ on sys.path is safe: the package under it is named for this
-# platform.
+# Reach the shared helpers. Putting builder/ on sys.path is safe here because
+# its package is named for this platform; see CONTRIBUTING.md, "Code structure".
 BUILDER_DIR = join(dirname(dirname(abspath(__file__))), "builder")
 if BUILDER_DIR not in sys.path:
     sys.path.insert(0, BUILDER_DIR)

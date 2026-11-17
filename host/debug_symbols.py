@@ -15,6 +15,9 @@ class ResidentSymbols:
     ``text``. Renaming that section to ``.text`` in a separate ELF avoids the
     failure while retaining its addresses, contents and DWARF. Uploads must
     continue to use the original framework resident.
+
+    The temporary directory is removed when this object is collected, so the
+    caller keeps a reference for as long as GDB may read the ELF.
     """
 
     def __init__(self, resident_elf, objcopy):

@@ -8,8 +8,8 @@
 # target. This module knows about arm-zephyr-eabi-strip, gen-rodata-ld,
 # zephyr-sketch-tool and the resident firmware ELF exported by the framework
 # adapter; it has no knowledge of Linux GPIO wiring, OpenOCD, or the
-# framework package's internal layout beyond the ARDUINO_ZEPHYR_* values it
-# consumes.
+# framework package's internal layout beyond the ARDUINO_ZEPHYR_* values,
+# LDSCRIPT_PATH and STATIC_CHECK_LINKFLAGS that the adapter exports.
 
 from os.path import isfile, join
 
@@ -63,23 +63,18 @@ env.Replace(
     ),
 )
 
-# Startup mode. The resident firmware reads this out of the header that
-# zephyr-sketch-tool writes, so it is a property of the packed artifact,
-# decided at packing time -- not a compile or upload setting. Upstream
-# exposes it as the "wait_linux_boot" board menu; here it is
-# board_build.boot_mode, with the same default.
-#
-# "app" is upstream's name for the flag. The loader holds before loading the
-# sketch until released; host/board_control.py is the other end of that.
+# Startup mode. The resident firmware reads it from the header that
+# zephyr-sketch-tool writes, so it is fixed at packing time. Upstream exposes
+# it as the "wait_linux_boot" board menu, and "app" is upstream's name for the
+# flag; host/board_control.py performs the release that "app" waits for.
 STARTUP_MODE_FLAGS = {
     "wait": [],                  # hold until Linux is up (default)
     "app": ["-wait_for_app"],    # hold until the host releases the sketch
     "immediate": ["-immediate"],
 }
 
-# Defaults per build type, and why each one, are in CONTRIBUTING.md:
-# the "app" path in particular only works if this module, the test reader and
-# the board control agree, so it is documented where all three can find it.
+# The reasons for each build type's default are in docs/board-operations.md,
+# "Sketch startup is an artifact and host coordination contract".
 # board_build.boot_mode overrides these -- PlatformIO folds board_* options
 # into the board manifest, which is why the manifest itself states none.
 build_type = env["BUILD_TYPE"]
@@ -162,8 +157,8 @@ else:
     # ------------------------------------------------------------------
     # Multi-pass dynamic relocatable link
     #
-    # Upstream Arduino Zephyr 0.56.0 links the LLEXT application in three
-    # passes: a temporary relocatable link, gen-rodata-ld analyzing that
+    # Upstream ArduinoCore-zephyr links the LLEXT application in three
+    # steps: a temporary relocatable link, gen-rodata-ld analyzing that
     # temporary ELF to split .rodata into flash-resident and RAM-resident
     # parts, and a final relocatable link that applies the generated split.
     # This is built as an explicit SCons graph (cloned envs + Program()
@@ -171,10 +166,10 @@ else:
     # only ever constructs one link pass.
     #
     # env.BuildProgram()'s "front matter" (resolving PIOBUILDFILES from the
-    # framework/project sources, applying build flags, enabling the linker
-    # cyclic-reference workaround) still has to run exactly once so both
-    # passes see the same, fully-populated build inputs; only its single
-    # env.Program() call is replaced.
+    # framework/project sources and applying build flags) still has to run
+    # exactly once so that every link below sees the same build inputs; only
+    # its single env.Program() call is replaced, and its cyclic-reference
+    # workaround is applied explicitly below.
     # ------------------------------------------------------------------
     env.ProcessProgramDeps()
     # Only acts for "compiledb": resolves CC/CXX/AS to absolute paths and
@@ -209,10 +204,11 @@ else:
     # Upstream runs this as the first step of every build
     # (recipe.c.combine.1), not as an opt-in target: it re-links the same
     # objects as a normal static executable against memory-check.ld, so
-    # that a sketch which cannot fit or resolve is rejected here rather
-    # than at load time. "-r" and the dynamic linker script are dropped
-    # for this pass, per upstream's note that the check has to emulate a
-    # static build.
+    # that unresolved symbols fail the build rather than the load.
+    # memory-check.ld uses synthetic memory regions and does not enforce the
+    # sketch's flash or heap allocation; zephyr-check-size reports those.
+    # "-r" and the dynamic linker script are dropped for this pass, per
+    # upstream's note that the check has to emulate a static build.
     check_env = env.Clone()
     check_env.Replace(
         PROGNAME="firmware-check",
@@ -309,16 +305,12 @@ build_target = sketch_artifact
 # ---------------------------------------------------------------------------
 # "checklink" target
 #
-# The check link itself is part of every build (see above); this only
-# exposes it as a target that can be requested on its own.
-# Registered unconditionally, including in "nobuild" mode where check_elf is
-# None and the alias has nothing to depend on. That is not a silent no-op
-# standing in for a real check: "pio remote run" always builds locally
-# first, so if a check ran at all it already ran there. What reaches this
-# SCons invocation is only ever an upload-only pass, and "pio remote run"
-# reissues every "-t" the caller passed rather than filtering it -- so a
-# deployment command such as "-t checklink -t upload" reaches the "nobuild"
-# leg with "checklink" still in COMMAND_LINE_TARGETS.
+# The check link itself is part of every build; this only exposes it as a
+# target that can be requested on its own. It is registered in "nobuild" mode
+# too, where check_elf is None and it does nothing: a non-forced
+# "pio remote run" has already run the check in its local build and reissues
+# the caller's targets, "checklink" included, to the upload-only leg. See
+# docs/build.md, "Remote targets must remain available without rebuilding".
 # ---------------------------------------------------------------------------
 
 env.AddPlatformTarget(
@@ -330,19 +322,17 @@ env.AddPlatformTarget(
 # ---------------------------------------------------------------------------
 # Size reporting
 #
-# Upstream replaced arm-zephyr-eabi-size with its own zephyr-check-size
-# (ArduinoCore-zephyr PR #385), because neither number this board cares
-# about is a plain section total: flash usage is the size of the packed
-# upload artifact, and RAM usage is the LLEXT heap footprint, which in a
-# dynamic build is the sum of every SHF_ALLOC section minus the
-# non-relocated rodata when CONFIG_LLEXT_RODATA_NO_RELOC is set. The tool
-# prints those two figures as ".text" and ".data" lines, matching
-# upstream's platform.txt recipe:
+# Upstream's zephyr-check-size (ArduinoCore-zephyr PR #385) replaces
+# arm-zephyr-eabi-size because neither figure is a plain section total:
+# flash usage is the packed artifact's size, and RAM usage is the LLEXT heap
+# footprint, every SHF_ALLOC section less the non-relocated rodata when
+# CONFIG_LLEXT_RODATA_NO_RELOC is set. It prints them as ".text" and ".data"
+# lines, as in upstream's platform.txt recipe:
 #
 #     zephyr-check-size <link_mode> <config> <upload_file> <elf_file>
 #
-# so PlatformIO's size expressions become a direct read of those two
-# lines instead of a hand-maintained list of section names.
+# The limits they are checked against are described in docs/build.md,
+# "Board metadata and sketch capacity".
 # ---------------------------------------------------------------------------
 
 size_target = None

@@ -9,15 +9,9 @@
 # alone tells GDB nothing about where anything ended up. The regions are read
 # out of the resident firmware's own "struct llext" once it exists.
 #
-# This intercepts llext_bootstrap rather than scanning SRAM for the extension's
-# name. Scanning has to assume both a struct layout (which CONFIG_USERSPACE
-# changes) and an enum ordering (which CONFIG_LLEXT_VENEERS changes), and it
-# reads whatever the previous boot left behind. Reading the "ext" argument at
-# a breakpoint the loader itself reaches after loading assumes neither, and
-# cannot see a stale value. A breakpoint on llext_load works the same way but
-# one step earlier, while "ext" is still an out-parameter the call has not
-# written yet; see arduinoq_load_sketch_symbols below for why that entry point
-# exists separately.
+# The "ext" argument is read at a breakpoint the loader reaches after loading,
+# rather than by scanning SRAM; docs/debugging.md, "Symbol placement must
+# finish in the init script", explains the choice of entry points.
 #
 # The resident firmware's symbols must be loaded when this runs; the platform
 # arranges that, along with the breakpoint on llext_bootstrap.
@@ -31,8 +25,7 @@ define arduinoq_sketch_regions
   if $argc != 0
     echo usage: arduinoq_sketch_regions\n
   else
-    # Plain integers captured during placement: the resident firmware's
-    # types and enumerators are gone by the time anyone types this.
+    # Plain integers captured during placement.
     printf "  .text                  0x%08lx  %8lu bytes\n", $_aq_text, $_aq_text_size
     printf "  .data                  0x%08lx  %8lu bytes\n", $_aq_data, $_aq_data_size
     printf "  .rodata                0x%08lx  %8lu bytes\n", $_aq_rodata, $_aq_rodata_size
@@ -50,9 +43,7 @@ end
 # Placement itself, given $_aq_ext already points at the loaded extension.
 # Kept separate from how that pointer was obtained: the two entry points
 # below differ only in that, and one of them must not resume execution.
-# No argument check here, deliberately: both entry points validate before
-# calling, and wrapping this whole body in an "else" to make a check do
-# anything would buy nothing.
+# Both entry points check the argument count before calling this.
 define arduinoq_place_sketch_symbols
   # Capture as plain integers before dropping the symbol table: the values
   # would otherwise keep a type that is about to disappear.

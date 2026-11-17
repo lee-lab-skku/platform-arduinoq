@@ -7,9 +7,8 @@
 #
 # Two callers need it, and they do not run in the same process:
 # builder/upload/openocd.py inside SCons, and host/board_control.py inside
-# PlatformIO's own. Before this module they were two copies of the same four
-# constants, two copies of the same existence check and two differently
-# worded errors -- which is to say nothing actually kept them in step.
+# PlatformIO's own. Keeping the paths, existence check and errors here is
+# what keeps the two in step.
 
 from collections import namedtuple
 from os.path import isfile, join

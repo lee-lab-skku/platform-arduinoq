@@ -57,17 +57,12 @@ HOST_SPECIFIC_PACKAGES = frozenset(PACKAGE_URL_BASES) - {
 # waste, and PlatformBase offers no __init__ hook to hang a cache on.
 _LOADED_MODULES = {}
 
-# PlatformIO's stock GDB start-up script, less two lines.
-#
-# "monitor init" is gone. The server this platform starts has already run
-# init, and running it again halts the target a second time -- which is where
-# the two consecutive "halted due to debug-request" came from.
-#
-# "$INIT_BREAK" moves out because it would be evaluated here, while only the
-# resident firmware's symbols are loaded -- so its default of "tbreak main"
-# resolves against the resident firmware and stops the run to llext_bootstrap
-# short. The platform evaluates it after placing the sketch's symbols instead,
-# and only when the project names one; see configure_debug_session.
+# PlatformIO's stock GDB start-up script, less two lines. "monitor init" is
+# dropped because the debug server has already run init, and a second one
+# halts the target again. "$INIT_BREAK" would resolve here against the
+# resident firmware alone, so _add_debug_commands evaluates it after placing
+# the sketch's symbols. See docs/debugging.md, "Session commands must replace
+# PlatformIO defaults that do not fit".
 DEBUG_INIT_CMDS = (
     "define pio_reset_halt_target",
     "monitor reset halt",
@@ -123,13 +118,12 @@ class ArduinoqPlatform(PlatformBase):
         return super().configure_default_packages(options, targets)
 
     def is_embedded(self):
-        # PlatformBase derives this from the presence of a package declared
-        # with type "uploader", which PlatformIO then force-installs for any
-        # target whose name contains "upload" -- ignoring "optional".
-        #
-        # PlatformIO reads this for the linker "cyclic reference" workaround
-        # (--start-group/--end-group), IDE target listing, and unit-test and
-        # debug session behaviour.
+        # PlatformBase derives this from a declared "uploader" package, which
+        # PlatformIO would then force-install for any target whose name
+        # contains "upload", ignoring "optional". The platform declares none
+        # so that it can keep the board image's OpenOCD, but Core must still
+        # treat it as embedded. See docs/packages-and-libraries.md, "MPU host
+        # package management is deferred".
         return True
 
     @property
@@ -204,7 +198,7 @@ class ArduinoqPlatform(PlatformBase):
     #
     # Anything a project may need to do to the board outside a build is
     # reached through these, so that the board's wiring stays described in
-    # one place. Both are plain methods on the platform instance, which
+    # one place. They are plain methods on the platform instance, which
     # PlatformIO hands to a custom test runner as ".platform".
     # -----------------------------------------------------------------------
 
@@ -362,9 +356,9 @@ class ArduinoqPlatform(PlatformBase):
         resident_symbols = self._gdb_quote(debug_config._arduinoq_resident_symbols.path)
 
         commands = [
-            # A safety net only, now that the sketch's symbols stay loaded
-            # throughout. It does not help an IDE: MI's -break-insert ignores
-            # this setting and fails outright unless it is given -f.
+            # A safety net for breakpoints set while the sketch's symbols are
+            # not placed, such as after a reset. It does not help an IDE: MI's
+            # -break-insert ignores this setting and fails unless given -f.
             "set breakpoint pending on",
             # The resident firmware is built with its paths rewritten relative
             # to the tree it came from. Only the part of that tree the
@@ -378,22 +372,11 @@ class ArduinoqPlatform(PlatformBase):
             # Only the resident firmware for now: it is what runs until the
             # extension is started, and the sketch's own symbols would be at
             # addresses nothing occupies yet.
-            #
-            # Absolute: this is fed to GDB verbatim, with no shell to expand
-            # a "~" along the way.
             'symbol-file %s' % resident_symbols,
-            # Run to the extension and place its symbols here, while the init
-            # script still has control. Everything an IDE does happens after
-            # this file finishes, so by then the sketch's symbols are already
-            # where they will stay -- which is the only arrangement that works
-            # for it. Resolving breakpoints later is not enough: GDB resolves
-            # a location once and then tries to insert it at that address on
-            # the next resume, and an address the loader has not chosen yet
-            # cannot be written, which aborts the resume outright.
-            #
-            # llext_bootstrap rather than llext_load: the loader reaches it
-            # with the extension already loaded and named by its first
-            # argument, so nothing has to be finished to see the result.
+            # Run to the extension and place its symbols while the init script
+            # still has control. docs/debugging.md, "Symbol placement must
+            # finish in the init script", explains why later placement fails
+            # and why the stop is llext_bootstrap rather than llext_load.
             "break llext_bootstrap",
             # Remembered so the helper can drop it before discarding the
             # symbol table it belongs to.

@@ -1,11 +1,8 @@
 # Contributing
 
-This document covers development setup, change validation, and contracts that contributors must preserve across files or execution environments.
-It also records design reasoning and failed approaches whose causes would otherwise need to be rediscovered.
+This document covers development setup, change validation, and the code structure that contributors must preserve.
+The cross-file contracts and their design reasoning are kept in the [developer documentation](docs/README.md).
 For installation, project configuration, and board operation, see [README.md](README.md).
-
-Keep enough of each cross-file flow to explain where its assumptions hold and where they break.
-File and function names belong here when they identify the participants in that contract; details local to one implementation belong beside the code.
 
 ## Using a development checkout
 
@@ -25,91 +22,14 @@ Use the execution environments described in [Where the build runs](README.md#whe
 Validate hardware behavior on the MPU with the development checkout; a workstation build covers only the build side.
 For remote changes, check that both participating machines use the intended revision and exercise the affected [remote mode](README.md#remote-builds).
 
-Choose validation scope from the contracts below; the [package resolver](#resolution-without-a-project-environment) has its own checklist.
+Choose validation scope from the [contracts](docs/README.md) a change touches; the [package resolver](docs/packages-and-libraries.md#resolution-without-a-project-environment) has its own checklist.
 For shared helpers, cover their callers across execution environments: OpenOCD changes can affect uploads, test-reader board operations, standalone control targets, and debugger startup.
 For artifact changes, cover both the normal build and upload-only paths, plus `size` when changing size reporting.
 
 Hardware scenarios require a suitable sketch or test project; see [Unit testing](README.md#unit-testing) for test-runner setup.
 Documentation-only changes need review of the affected claims, examples, and links.
 
-## Cross-file contracts
-
-### Board control targets must bypass the build
-
-The `reset`, `halt`, and `release` targets are a platform-owned no-build contract, documented in [Board control](README.md#board-control-without-a-build).
-Register them without artifact dependencies and resolve the board controller only when their action executes.
-A control-only invocation must return before loading the artifact or upload modules; treating it as upload-only `nobuild` mode would still couple it to artifact paths.
-Preserve the existing host-side `BoardControl` semantics and project environment overrides.
-
-Keep target selection rules shared between Core package configuration and the SCons builder.
-Core consumes clean requests before the platform builder runs, so builder-only validation cannot reject a mixed control/clean request before cleaning.
-Accept one control target with optional `nobuild`, and reject other combinations before actions execute.
-Target discovery must not validate OpenOCD or operate hardware.
-The guarantee covers sketch build actions, not Core initialization, package installation, or user-provided extra scripts.
-Non-forced remote orchestration performs a local build outside this control-only path; document forced remote execution instead.
-
-### C++ runtime linking must match the framework recipe
-
-The framework's generated response files and resident configuration define the libc contract.
-Keep the framework, SDK, compiler ABI and link recipe aligned when updating packages; do not infer the libc from the SDK version alone.
-Retain the response files' compile-time specs and headers, but do not add the nano/nosys link specs removed from SDK 1.0.
-Keep explicit C++/math/GCC/C libraries inside the existing archive group, after the core archive.
-Force `__cxa_allocate_exception` as the upstream recipe does, including in the static compatibility link.
-Compile C++ with `-fno-extern-tls-init` so resident `errno` does not gain an undefined `_ZTH5errno` initialization thunk in the extension.
-Validate basic and C++/errno/Zephyr-export fixtures through the actual static check and both dynamic link passes; a compiler-only result is insufficient.
-
-### Debug symbols must use loader allocations
-
-Prepare a session-local resident ELF with `text` renamed to `.text` before GDB reads it to avoid the GDB 16.2 breakpoint crash observed with the packaged resident ELF.
-Preserve loadable addresses/bytes and DWARF, leave the package resident immutable, and keep the temporary ELF alive across Core's pre-debug rebuild/upload.
-The upload path must continue using the original resident, and session cleanup must remove the temporary copy.
-
-Read section addresses from the resident firmware's `struct llext` and enum names before replacing its symbol table.
-Keep `.data` distinct from `.text`: LLEXT allocates initialized data separately, and GDB leaves omitted sections at their original ELF addresses.
-Validate an initialized global's value and address as well as a local variable and a file/line breakpoint; reading a zero-initialized `.bss` global alone does not check `.data` placement.
-Cover both automatic build/upload and loading existing artifacts, including symbol relocation after reset.
-
-### Framework paths must be available without a build
-
-PlatformIO runs framework scripts inside `ProcessProgramDeps()`.
-`builder/artifacts/zephyr-llext.py` calls it during a build but deliberately skips it in `nobuild` mode, so the framework adapter's `ARDUINO_ZEPHYR_*` exports are unavailable in upload-only execution.
-
-Modules that need framework paths in both modes must use `builder/arduinoq_common/arduino_zephyr_layout.py` without depending on framework initialization.
-`builder/upload/openocd.py` needs those paths even when uploading existing artifacts; upload-only remote sessions are the case that breaks if it relies on the adapter's exports.
-
-### OpenOCD output must follow the commands actually executed
-
-Keep the framework's flash script authoritative for verification, writing, reset requests, and the SRAM release.
-The shared [reset coordination](#reset-and-router-coordination) controls the pause inside each reset request.
-The upload observer wraps `flash` calls before that script runs and identifies images using `filename0` and `filename1`; do not branch on framework versions or infer writing from the number of verification errors.
-The writing notice must precede the actual `write_image` call and must not appear for an image the script skips.
-Preserve argument boundaries, caller scope, and the original command's return code and result.
-Use syntax supported by OpenOCD's Jim Tcl interpreter, rather than assuming full Tcl compatibility.
-The forwarding and wrapper installation constraints are documented beside the implementation in `builder/arduinoq_common/openocd_events.tcl`.
-
-Keep output filtering and Tcl observation in the SCons-independent `arduinoq_common` package so uploads and host board operations share their diagnostics without importing the upload builder.
-Observe reset commands without changing target initialization order or outcome, and do not replace target reset events.
-Report reset completion only for a matching begin/end pair with return code zero, after reset coordination has completed, preserving the requested `run`, `halt`, and `init` outcomes.
-This is command completion evidence, not sketch readiness; an interrupted or failed command must not produce a completion notice.
-Do not infer a reset from GDB startup or OpenOCD shutdown messages, and do not synthesize one for the release write.
-Keep debugger server arguments unobserved and verbose because PlatformIO uses their output to detect readiness.
-
-Treat the observer's log records as an internal protocol, including at OpenOCD debug level 3 where commands themselves are traced.
-Accept signed verification return codes: some OpenOCD builds propagate negative native errors through Jim Tcl's `catch`, while others return Tcl's error code `1`.
-Preserve those codes in the observer and interpret them in the output filter without checking the OpenOCD or framework version.
-Only suppress the known bank-verification failure diagnostic inside a completed, failed verification with no other reported error.
-That diagnostic is not a unique error code for content mismatch; retain it when accompanied by another error, outside verification, or when verification ends unexpectedly.
-Preserve the subprocess exit status and include available diagnostic context on failure.
-Keep normal log visibility controlled by `PIOVERBOSE` and preserve the ordering of user `upload_flags` after platform flags.
-Send shared filtered output to stderr: PlatformIO invokes uploads silently during a default `pio test`, which discards stdout even when it contains explicit writing notices or errors.
-Keep normal logs gated by verbosity before forwarding them to stderr.
-
-Respect the framework's `log_output` policy.
-Some scripts discard verification logs and restore output before writing; this also discards real verification errors, even in verbose mode.
-Do not override that policy or change the framework's catch-and-write behavior as part of output filtering.
-The user-facing limitation is documented in [README.md](README.md).
-
-### Shared helpers must remain independent of SCons
+## Code structure
 
 Both `builder/`, running inside SCons, and `host/`, running in PlatformIO's own process, import `arduinoq_common`.
 Keep that package free of SCons dependencies so importing a shared helper does not break the host side.
@@ -119,181 +39,10 @@ The platform-specific name `arduinoq_common` avoids the collisions a generic `co
 `platform.py` handles the related risk by loading helpers by path rather than exposing itself as a top-level `platform` module.
 Preserve these import boundaries when moving shared code.
 
-### Integration metadata must describe the build without changing it
+## Design and contracts
 
-The framework response files remain the source of compiler settings.
-Supplement Core's `DumpIntegrationData` result through the platform environment's method, installed before project environments are cloned; retain the original method's project receiver.
-Do not modify installed Core files, globally patch its adapters, or change `CPPPATH`, `CPPDEFINES`, compilation, or linking to accommodate an analyzer.
-Keep response parsing in the SCons-independent shared helper.
+Read the [developer documentation](docs/README.md) for the subsystems a change touches before changing it, and update it in the same change when a contract changes.
+When writing a contract, follow these rules:
 
-Expand response references at their original position, using the compiler working directory for nested relative references.
-Report unreadable files and active recursion cycles with their paths; repeated nonrecursive references are valid.
-Preserve argument boundaries, language differences, and option order, including later `-std` overrides.
-GCC searches explicit `-I` paths before `-iwithprefixbefore` paths, even when the prefix options occur earlier in the command.
-Concatenate each prefix with its suffix before resolving the path, retain nonexistent configured paths, and preserve Core's library and toolchain include groups.
-
-SCons places `CPPDEFINES` after the language/common flags in this platform's compile commands.
-Apply response-file `-D`/`-U` operations first, then Core's definitions, to compute the common final definitions.
-Retain those operations and the trailing Core definitions in each language's flags so replay preserves their precedence.
-Warn about definitions that the common C/C++ field cannot express.
-Keep `-imacros` and `-include` as options; copying configuration-header macros into `defines` loses their preprocessing context.
-
-Validate metadata changes in a separate sketch copy that selects the development checkout.
-Capture `pio run -t compiledb` before and after the change, normalize only relocated paths, and compare every command; also run a clean build, `checklink`, and `size`.
-Compare GCC `-E -dM`, `-E -v`, and `-M` results for the original and expanded settings to check final macros, include search order, and forced-header dependencies.
-Count expected framework settings from the installed response files rather than fixing package-specific counts in the implementation.
-Inspect both analysis adapters' actual input and parsing errors with `pio check -v`; their success labels are not a completeness check.
-
-### Sketch startup is an artifact and host coordination contract
-
-`board_build.boot_mode` is written into the packed image by `zephyr-sketch-tool`; it is fixed at packing time, rather than selected during compilation or upload.
-The default values and override precedence are documented in [Boot mode](README.md#board_buildboot_mode).
-Debug builds use `immediate` because waiting in the loader's `control_gpios` path before `llext_load` would make sketch symbol placement depend on Linux startup timing.
-Test builds use `app` to hold the loader before loading the sketch until the reader is connected.
-Debug takes precedence for a debug test session because a loader breakpoint already provides the hold.
-
-Keep boot-mode packing and host startup control consistent.
-An `app` image waits for a separate SRAM release; ordinary uploading supplies that release, while a plain reset does not.
-CPU resume and app release must remain distinct operations.
-The test reader must complete reset before attaching its monitor, and keep the MCU halted until attachment succeeds.
-Ordinary uploads and resets do not attach a monitor.
-Transport handling is described under [Reset and Router coordination](#reset-and-router-coordination).
-Verify initial output separately for each transport and boot mode.
-
-### Reset and Router coordination
-
-Use shared reset coordination for platform-owned host operations, framework uploads, and debugger resets, including resets during OpenOCD initialization.
-Select the transport from the board configuration, respecting project overrides in every caller.
-Keep coordination separate from output observation, and preserve the framework's flash policy and target reset event handlers.
-
-Reset the MCU before handling its Router connection.
-A requested running reset must first halt the MCU, then resume only after the required transport handling succeeds.
-Requested halt outcomes must stay halted; reset or Router failures must propagate without resuming or reporting success.
-
-- **UART (UNO Q):** close the old Router serial connection, wait for it to terminate, then reopen it through the separate host control channel.
-  This discards incomplete Router decoder state that flushing the UART alone cannot clear.
-  Preserve monitor connections and the Router service's GPIO readiness signal rather than restarting the service.
-  The open acknowledgement does not guarantee receive readiness: retain the provisional fixed delay after open and before MCU resume until a reliable readiness check can replace it.
-- **USB CDC (Ventuno Q):** let reset disconnect the device, ending the old Router decoder and RPC registrations; Router reconnects when MCU execution restores USB.
-  Do not issue serial close/open while the device is absent: Router 0.11.0 can wait for USB while ignoring the close signal, deadlocking with a halted MCU.
-  Verify readiness through actual RPC/Serial responses after resume.
-
-Test monitor attachment and `app` release follow the [sketch startup contract](#sketch-startup-is-an-artifact-and-host-coordination-contract).
-External resets and custom debug servers are outside this coordination.
-Validate changes on the MPU with its actual OpenOCD build across upload, direct board control, test startup, and debugger resets, covering early output in each boot mode and failures that must leave execution halted.
-Host-only checks cannot establish transport readiness or hardware reset behavior.
-
-### Library ownership and compatibility
-
-The framework package's export policy owns the contents of `libraries/`; do not duplicate that inventory in the platform.
-Set `LIBSOURCE_DIRS` to the shared `libraries/` storage directory.
-PlatformIO discovers libraries among each storage directory's children, so listing individual library directories breaks discovery.
-
-Keep the framework identifier `arduino` to retain compatibility with libraries declaring `frameworks=arduino` without requiring `lib_compat_mode=off`.
-This identifier does not guarantee that a library works with Zephyr.
-The user-facing compatibility limits belong in [Environment constraints](README.md#environment-constraints).
-
-### Remote targets must remain available without rebuilding
-
-For a non-forced `pio remote run`, the local leg runs the fixed targets `["checkprogsize", "buildprog"]`, while the remote leg reissues the caller's targets with `nobuild` appended.
-For example, `pio remote run -t checklink -t upload` reaches the board with both `checklink` and `nobuild`, even though the local build has already performed the link check.
-
-Keep `checklink` registered unconditionally and accept it as a no-op in `nobuild` mode.
-Otherwise, an upload-only remote invocation can fail on an unknown target despite a successful local build.
-
-## Package resolution
-
-### Version and URL ownership
-
-Keep each package's complete semantic version, including prerelease and build metadata, in `platform.json` as the single source of truth.
-`PACKAGE_URL_BASES` in `platform.py` owns the repository and Git tag convention, with a `{release}` placeholder rather than a concrete version.
-A routine package version bump should change only `platform.json`.
-Change URL bases when a package moves repository or changes its tag convention.
-
-Release assets use `<urlbase><package-name>[-<systype>]-<version>.tar.gz`.
-The `packages` property strips prerelease and build metadata when filling the release tag placeholder, but retains the complete version in the asset filename.
-For example, a pin such as `0.56.0-leelabskku+unoq` supplies `0.56.0` for `{release}` while keeping the complete pin in the filename.
-The framework package is architecture-independent; toolchains and helper tools include `linux_x86_64` or `linux_aarch64` in their asset names.
-Explicit `platform_packages` overrides must bypass URL expansion.
-
-### Platform-managed libraries
-
-The top-level `libraries` field in `platform.json` owns exact default library versions.
-It is interpreted by this platform, separately from Core's framework/tool `packages` field.
-`LIBRARY_URL_BASES` owns library repository and tag rules; retain the complete library version in both the release tag and asset name.
-The library resolver returns copies and must not replace the manifest's nominal versions with URLs.
-
-`configure_project_packages()` first retains Core's package configuration and target validation, then adds library defaults to the shared in-memory configuration of Arduino environments.
-Core installs these through Library Manager before a build; SCons recreates the same defaults when it loads the platform.
-Do not save the project configuration, install libraries inside the hook, or add hardware/SCons dependencies to the resolver.
-Repeated calls must not duplicate defaults or leak selections between environments.
-Project-free global platform installation does not create a library environment.
-
-An explicit project RouterBridge selection suppresses the platform default; preserve its specification and let Core handle transitive dependencies.
-Use `PackageSpec` identity, including repository-name spelling, and inspect existing local manifests without extracting them.
-Unidentifiable remote sources use Core's explicit `Arduino_RouterBridge=<URI>` alias.
-Do not add a second dependency-conflict solver or repin RPClite and MsgPack in the platform.
-
-The pinned framework variant detects `routerbridge_provides_serial.h` and defines `ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL` before RouterBridge declares and defines its `Serial` alias.
-Keep this framework/library capability check authoritative instead of forcing a platform-wide macro.
-The framework's devicetree selection also owns `ARDUINO_ROUTER_SERIAL`.
-Validate the default without a manual macro in multiple translation units and check that `Serial` and `Monitor` share one instance.
-
-### Resolution without a project environment
-
-Resolve package URLs when Core reads `packages`, including during standalone installation, updates, and removal.
-In Core 6.2.0, `PlatformPackageManager.install()` calls `configure_project_packages()`, and therefore `configure_default_packages()`, only when a project environment is supplied.
-Standalone `pio pkg install -g -p <platform>` and the deprecated `pio platform install <platform>` skip that hook and proceed to `install_required_packages()`.
-Expanding URLs only in the project hook therefore leaves standalone installation resolving nominal version pins from the registry instead of fetching release assets.
-The `packages` property must also supply resolved URLs for updates and removal without a project environment.
-
-The resolver snapshots the original version pins before accessing `super().packages`, which applies project overrides to the same dictionaries.
-Preserve that ordering and the override exclusions: repeated access must never reinterpret an expanded URL or a user override as a version pin.
-Core's inherited `configure_default_packages()` remains responsible for framework and target package selection.
-
-When changing resolution, verify:
-
-- Project installation and standalone `pio pkg install -g -p <platform>` on both supported host architectures.
-- Explicit `platform_packages` overrides.
-- Repeated access to package metadata.
-- Package lookup without a project environment, including update and removal paths.
-
-## Board metadata and sketch capacity
-
-The board manifest describes the MCU's nominal hardware specifications for PlatformIO board listings and hardware summaries.
-Keep `build.mcu`, `build.f_cpu`, `upload.maximum_ram_size`, and `upload.maximum_size` consistent with those specifications.
-These describe the MCU, not the MPU's Linux memory or storage.
-The clock metadata does not configure the resident firmware's clock or replace the core's `SystemCoreClock`-based `F_CPU`.
-
-Keep the resident firmware's sketch allocations in `upload.maximum_sketch_size` and `upload.maximum_sketch_ram_size`, in bytes.
-Update these only when the framework's `user_sketch` partition or LLEXT heap allocation changes; nominal chip capacity does not determine the sketch budget.
-
-Core's `CheckUploadSize()` reads `upload.maximum_size` and `upload.maximum_ram_size` directly from `BoardConfig()`.
-Both the post-packing check and the `size` target must supply sketch allocations without modifying the shared board metadata, including when a check fails.
-A SCons environment clone alone is insufficient because its normal board lookup still returns the shared platform configuration.
-
-Keep `zephyr-check-size` responsible for the numerator: packed sketch image size and LLEXT heap usage.
-Reuse Core's formatting and flash-error/RAM-warning behavior with the sketch limits as the denominator.
-The static `checklink` pass uses the framework's linker scripts; the shipped `memory-check.ld` uses synthetic memory regions and is not an enforcement of the sketch partition or LLEXT heap capacity.
-Keep the user-facing distinction in [Board resources](README.md#board-resources).
-
-## Board integration constraints
-
-The board-specific configuration of `arduino-router.service` asserts a GPIO readiness signal.
-The resident loader's `wait` and `app` modes check the level of its `control_gpios` input before loading the sketch.
-While that signal remains asserted, an MCU reset can pass the same readiness check without a new command from the Router.
-The `app` mode additionally waits for the backup SRAM release described under [Sketch startup](#sketch-startup-is-an-artifact-and-host-coordination-contract).
-Keep this dependency visible in the user-facing [README.md](README.md).
-
-Use the board image's OpenOCD installation as the integration baseline.
-
-Preserve the [startup ordering](#sketch-startup-is-an-artifact-and-host-coordination-contract) that protects reader attachment rather than substituting framing changes for reset coordination.
-
-## Deferred decisions
-
-- **MPU host package management:** consider OpenOCD packaging and version control for other host dependencies, including Arduino Router, together as a reproducibility concern.
-  For OpenOCD, consider providing a declared platform package containing a compatible executable and configuration set; retain the board-image installation until their provenance can be managed together.
-  Core normally derives embedded-platform detection from declared uploader packages; this platform uses an override so it can retain the board-image OpenOCD without declaring an uploader package.
-  Preserve that detection behavior if packaging changes.
-  For Arduino Router and other relevant host packages, first consider pinning tested versions rather than introducing platform packages for them.
-  These remain deferred options, not implemented dependencies or version requirements; Router 0.10.0 is not an established fix for the startup-output issue.
+- **Scope**: Keep enough of each cross-file flow to explain where its assumptions hold and where they break.
+- **Names**: File and function names belong in a contract when they identify its participants; details local to one implementation belong beside the code.

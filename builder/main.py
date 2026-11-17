@@ -8,7 +8,8 @@
 # backend (builder/upload/openocd.py). It does not know framework package
 # layout, GPIO wiring, or OpenOCD target names.
 #
-# The framework adapter has not run at this point; see CONTRIBUTING.md
+# The framework adapter has not run at this point; see docs/build.md,
+# "Framework paths must be available without a build".
 
 import sys
 from collections import namedtuple
@@ -27,8 +28,6 @@ BUILDER_DIR = join(platform.get_dir(), "builder")
 if BUILDER_DIR not in sys.path:
     sys.path.insert(0, BUILDER_DIR)
 
-# Register operations without constructing a controller or touching hardware.
-# Only the selected action resolves the installation and invokes OpenOCD.
 from arduinoq_common.board_targets import TARGETS, control_target
 from arduinoq_common.integration_metadata import enrich_metadata
 
@@ -69,6 +68,8 @@ env["__PIO_TARGETS"]["upload"] = dict(
     group="Platform",
 )
 
+# Register operations without constructing a controller or touching hardware.
+# Only the selected action resolves the installation and invokes OpenOCD.
 for name, description in TARGETS.items():
     env.AddPlatformTarget(
         name=name,
@@ -132,11 +133,10 @@ AlwaysBuild(env.Alias("nobuild", artifacts.build_target))
 
 buildprog_targets = [artifacts.build_target]
 if not build_mode.nobuild:
-    # The size check used to be pulled in implicitly, because the packed
-    # artifact depended on it. zephyr-check-size measures that artifact,
-    # so the dependency now runs the other way and "buildprog" has to ask
-    # for the check itself. "pio remote run" requests it explicitly, but a
-    # plain "pio run" would otherwise skip it.
+    # zephyr-check-size measures the packed artifact, so the size check
+    # depends on the artifact rather than the reverse, and "buildprog" has to
+    # ask for it. "pio remote run" requests it explicitly, but a plain
+    # "pio run" would otherwise skip it.
     buildprog_targets.append(artifacts.checkprogsize_target)
 
 # Sources only, no action: SCons would read a list in Alias' third argument

@@ -7,8 +7,8 @@
 # PlatformIO offers no way for a development platform to register a test
 # runner: TestRunnerFactory only ever loads <test_dir>/test_custom_runner.py
 # from the project. A project runner can still delegate here, because
-# TestRunnerBase keeps the platform for its environment as .platform; README
-# shows the delegating runner.
+# TestRunnerBase keeps the platform for its environment as .platform; README's
+# "Unit testing" section shows the delegating runner.
 #
 # What belongs on which side: how the board is reached and reset is platform
 # knowledge and lives here; how a line of test output is parsed belongs to
@@ -22,7 +22,7 @@ from platformio.test.runners.readers.serial import SerialTestOutputReader
 # The sketch's Serial is provided by RouterBridge and surfaces on the MPU as
 # a TCP socket rather than a UART, so there is no port for PlatformIO's
 # SerialPortFinder to discover. This is the platform's default; a project can
-# still override it with "test_port", and a board manifest with "test.port".
+# still override it with "test_port" or --test-port.
 DEFAULT_TEST_PORT = "socket://localhost:7500"
 
 
