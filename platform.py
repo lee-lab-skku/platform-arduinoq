@@ -321,6 +321,11 @@ class ArduinoqPlatform(PlatformBase):
         match = re.match(r"^:?(\d+)$", str(configured))
         return int(match.group(1)) if match else None
 
+    @staticmethod
+    def _gdb_quote(path):
+        """Quote a path as one argument for GDB commands that split on spaces."""
+        return '"%s"' % path.replace("\\", "\\\\").replace('"', '\\"')
+
     def _add_debug_commands(self, debug_config):
         """Prepare the session for placing the sketch's symbols.
 
@@ -347,8 +352,7 @@ class ArduinoqPlatform(PlatformBase):
             layout.resident_elf,
             os.path.join(toolchain_dir, "bin", "arm-zephyr-eabi-objcopy"),
         )
-        resident_symbols = debug_config._arduinoq_resident_symbols.path
-        resident_symbols = resident_symbols.replace("\\", "\\\\").replace('"', '\\"')
+        resident_symbols = self._gdb_quote(debug_config._arduinoq_resident_symbols.path)
 
         commands = [
             # A safety net only, now that the sketch's symbols stay loaded
@@ -359,7 +363,10 @@ class ArduinoqPlatform(PlatformBase):
             # to the tree it came from. Only the part of that tree the
             # framework package ships can be pointed at; Zephyr's own sources
             # are not on the board at all, so those frames stay source-less.
-            "set substitute-path ./ArduinoCore-zephyr %s" % layout.framework_dir,
+            "set substitute-path ./ArduinoCore-zephyr %s"
+            % self._gdb_quote(layout.framework_dir),
+            # Unquoted on purpose: "source" takes the rest of the line as the
+            # file name, spaces included, and would keep quotes as part of it.
             "source %s" % self._resolve_path(*LLEXT_GDB_SCRIPT),
             # Only the resident firmware for now: it is what runs until the
             # extension is started, and the sketch's own symbols would be at
@@ -367,7 +374,7 @@ class ArduinoqPlatform(PlatformBase):
             #
             # Absolute: this is fed to GDB verbatim, with no shell to expand
             # a "~" along the way.
-            'symbol-file "%s"' % resident_symbols,
+            'symbol-file %s' % resident_symbols,
             # Run to the extension and place its symbols here, while the init
             # script still has control. Everything an IDE does happens after
             # this file finishes, so by then the sketch's symbols are already
@@ -386,7 +393,10 @@ class ArduinoqPlatform(PlatformBase):
             "set $_aq_llext_bp = $bpnum",
             "continue",
             # $PROG_PATH is substituted by PlatformIO before GDB sees it.
-            "arduinoq_loaded_sketch_symbols $PROG_PATH",
+            # Single quotes keep a path with spaces one argument; the helper
+            # passes it on through eval's double-quoted format string, where
+            # double quotes would end that string early.
+            "arduinoq_loaded_sketch_symbols '$PROG_PATH'",
             # The same sequence, for after a reset: placement drops the
             # resident firmware's symbols, which both the breakpoint and the
             # "ext" argument need, so they are loaded again first. It
@@ -394,12 +404,12 @@ class ArduinoqPlatform(PlatformBase):
             # restart below, not for a breakpoint command list.
             "define arduinoq_sketch",
             "set confirm off",
-            'symbol-file "%s"' % resident_symbols,
+            'symbol-file %s' % resident_symbols,
             "set confirm on",
             "break llext_bootstrap",
             "set $_aq_llext_bp = $bpnum",
             "continue",
-            "arduinoq_loaded_sketch_symbols $PROG_PATH",
+            "arduinoq_loaded_sketch_symbols '$PROG_PATH'",
             "end",
             # PlatformIO's own restart only resets and steps, which leaves
             # the sketch's symbols at the previous run's addresses. Defining
