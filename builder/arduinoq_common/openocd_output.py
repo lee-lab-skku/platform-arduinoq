@@ -68,7 +68,6 @@ class OpenOcdOutput:
         self.output.flush()
 
     def diagnostic(self, line):
-        self.transcript.write(line)
         level, _ = classify(line)
         error = is_error(line)
         if level not in ("", "user"):
@@ -78,6 +77,9 @@ class OpenOcdOutput:
         if self.verbose or error or (level in ("", "user") and self.error_context):
             self.emit(line)
         else:
+            # Only what was held back is replayed on failure; lines already
+            # shown would otherwise appear twice.
+            self.transcript.write(line)
             self.hidden = True
 
     def finish_verification(self, code=None):
@@ -142,7 +144,7 @@ class OpenOcdOutput:
         self.finish_verification()
         if returncode:
             if self.hidden:
-                self.emit("OpenOCD diagnostics before failure:\n")
+                self.emit("OpenOCD diagnostics hidden before failure:\n")
                 self.transcript.seek(0)
                 for line in self.transcript:
                     self.emit(line)
