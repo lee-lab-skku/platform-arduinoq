@@ -387,10 +387,26 @@ class ArduinoqPlatform(PlatformBase):
             "continue",
             # $PROG_PATH is substituted by PlatformIO before GDB sees it.
             "arduinoq_loaded_sketch_symbols $PROG_PATH",
-            # Left defined so the placement can be repeated by hand from any
-            # stop where the extension is in scope.
+            # The same sequence, for after a reset: placement drops the
+            # resident firmware's symbols, which both the breakpoint and the
+            # "ext" argument need, so they are loaded again first. It
+            # resumes the target, so it is meant for the prompt or for the
+            # restart below, not for a breakpoint command list.
             "define arduinoq_sketch",
+            "set confirm off",
+            'symbol-file "%s"' % resident_symbols,
+            "set confirm on",
+            "break llext_bootstrap",
+            "set $_aq_llext_bp = $bpnum",
+            "continue",
             "arduinoq_loaded_sketch_symbols $PROG_PATH",
+            "end",
+            # PlatformIO's own restart only resets and steps, which leaves
+            # the sketch's symbols at the previous run's addresses. Defining
+            # it here keeps PlatformIO from adding that default.
+            "define pio_restart_target",
+            "pio_reset_halt_target",
+            "arduinoq_sketch",
             "end",
             "echo \\n[arduinoq] stopped in the loader, with the sketch's "
             "symbols in place.\\n",

@@ -31,23 +31,20 @@ define arduinoq_sketch_regions
   if $argc != 0
     echo usage: arduinoq_sketch_regions\n
   else
-    printf "  .text                  0x%08x  %8u bytes\n", \
-        $_aq_ext->mem[LLEXT_MEM_TEXT], $_aq_ext->mem_size[LLEXT_MEM_TEXT]
-    printf "  .data                  0x%08x  %8u bytes\n", \
-        $_aq_ext->mem[LLEXT_MEM_DATA], $_aq_ext->mem_size[LLEXT_MEM_DATA]
-    printf "  .rodata                0x%08x  %8u bytes\n", \
-        $_aq_ext->mem[LLEXT_MEM_RODATA], $_aq_ext->mem_size[LLEXT_MEM_RODATA]
-    printf "  .bss                   0x%08x  %8u bytes\n", \
-        $_aq_ext->mem[LLEXT_MEM_BSS], $_aq_ext->mem_size[LLEXT_MEM_BSS]
-    printf "  .llext.rodata.noreloc  0x%08x  %8u bytes\n", \
-        $_aq_ext->mem[LLEXT_MEM_RODATA_NO_RELOC], \
-        $_aq_ext->mem_size[LLEXT_MEM_RODATA_NO_RELOC]
+    # Plain integers captured during placement: the resident firmware's
+    # types and enumerators are gone by the time anyone types this.
+    printf "  .text                  0x%08lx  %8lu bytes\n", $_aq_text, $_aq_text_size
+    printf "  .data                  0x%08lx  %8lu bytes\n", $_aq_data, $_aq_data_size
+    printf "  .rodata                0x%08lx  %8lu bytes\n", $_aq_rodata, $_aq_rodata_size
+    printf "  .bss                   0x%08lx  %8lu bytes\n", $_aq_bss, $_aq_bss_size
+    printf "  .llext.rodata.noreloc  0x%08lx  %8lu bytes\n", \
+        $_aq_noreloc, $_aq_noreloc_size
   end
 end
 
 document arduinoq_sketch_regions
 Print the memory regions the LLEXT loader allocated for the sketch.
-Only meaningful after arduinoq_loaded_sketch_symbols has captured them.
+Only meaningful after the sketch's symbols have been placed.
 end
 
 # Placement itself, given $_aq_ext already points at the loaded extension.
@@ -64,6 +61,11 @@ define arduinoq_place_sketch_symbols
   set $_aq_rodata = (unsigned long)$_aq_ext->mem[LLEXT_MEM_RODATA]
   set $_aq_bss = (unsigned long)$_aq_ext->mem[LLEXT_MEM_BSS]
   set $_aq_noreloc = (unsigned long)$_aq_ext->mem[LLEXT_MEM_RODATA_NO_RELOC]
+  set $_aq_text_size = (unsigned long)$_aq_ext->mem_size[LLEXT_MEM_TEXT]
+  set $_aq_data_size = (unsigned long)$_aq_ext->mem_size[LLEXT_MEM_DATA]
+  set $_aq_rodata_size = (unsigned long)$_aq_ext->mem_size[LLEXT_MEM_RODATA]
+  set $_aq_bss_size = (unsigned long)$_aq_ext->mem_size[LLEXT_MEM_BSS]
+  set $_aq_noreloc_size = (unsigned long)$_aq_ext->mem_size[LLEXT_MEM_RODATA_NO_RELOC]
 
   echo \n[arduinoq] extension loaded, regions:\n
   arduinoq_sketch_regions
@@ -78,7 +80,9 @@ define arduinoq_place_sketch_symbols
 
   # Drop the resident firmware's symbols along with the copy of the sketch
   # that PlatformIO passed on the command line, which sits at address zero.
-  # Keeping either one would shadow what is added next.
+  # Keeping either one would shadow what is added next. Placing the sketch
+  # again after a reset has to load the resident symbols first; the
+  # platform's arduinoq_sketch does.
   symbol-file
 
   # The path goes into the format string rather than through %s: GDB
