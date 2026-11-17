@@ -14,7 +14,6 @@
 # knowledge and lives here; how a line of test output is parsed belongs to
 # whatever produced it, and stays in the project's runner.
 
-import click
 import serial
 
 from platformio.test.exception import UnitTestSuiteError
@@ -79,8 +78,15 @@ class ArduinoqTestOutputReader(SerialTestOutputReader):
                 timeout=self.IDLE_TIMEOUT,
             )
         except serial.SerialException as exc:
-            click.secho(str(exc), fg="red", err=True)
-            return None
+            # Give the board back before reporting: it was halted above, and
+            # nothing else will resume it once the run ends here.
+            if reset:
+                self.board_control.resume()
+                self.board_control.release()
+            raise UnitTestSuiteError(
+                "Could not open the test connection to %s (%s). Check that "
+                "arduino-router.service is running." % (port, exc)
+            ) from exc
 
         received = False
         try:
