@@ -265,18 +265,19 @@ class ArduinoqPlatform(PlatformBase):
         resets do, instead of repeating the path a third time.
         """
         env_options = debug_config.env_options
-        # The project supplied its own server, or turned it off entirely.
-        if "debug_server" in env_options or debug_config.server is None:
-            return
-
-        control = self.get_board_control(debug_config.board_config.id)
-        debug_config.server.update(
-            cwd=control.openocd_dir,
-            executable=control.openocd_binary,
-            arguments=control.server_arguments(
-                gdb_port=self._gdb_port(debug_config)
-            ),
-        )
+        # Only the server depends on who provides it. A project that supplies
+        # its own server, or turns it off to attach to one already running,
+        # still debugs the same relocatable sketch, so the load and symbol
+        # handling below apply to every session.
+        if "debug_server" not in env_options and debug_config.server is not None:
+            control = self.get_board_control(debug_config.board_config.id)
+            debug_config.server.update(
+                cwd=control.openocd_dir,
+                executable=control.openocd_binary,
+                arguments=control.server_arguments(
+                    gdb_port=self._gdb_port(debug_config)
+                ),
+            )
 
         self._add_debug_commands(debug_config)
 
@@ -286,7 +287,9 @@ class ArduinoqPlatform(PlatformBase):
             # session and then clears the load commands, so GDB never issues
             # one. That is the only workable arrangement here, because what
             # gets flashed is the packed image while the ELF GDB opens is a
-            # relocatable object the LLEXT loader places at run time.
+            # relocatable object the LLEXT loader places at run time. GDB's
+            # default "load" would write that object's zero-based sections
+            # over the start of flash, where the resident firmware lives.
             debug_config.load_cmds = ["preload"]
 
     @staticmethod
