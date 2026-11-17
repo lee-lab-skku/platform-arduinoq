@@ -177,6 +177,10 @@ else:
     # env.Program() call is replaced.
     # ------------------------------------------------------------------
     env.ProcessProgramDeps()
+    # Only acts for "compiledb": resolves CC/CXX/AS to absolute paths and
+    # honours COMPILATIONDB_INCLUDE_TOOLCHAIN, in the same position as in
+    # Core's BuildProgram.
+    env.ProcessCompileDbToolchainOption()
     env.ProcessProjectDeps()
 
     # The Arduino core archive and the eagerly built framework libraries
