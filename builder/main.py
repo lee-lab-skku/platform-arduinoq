@@ -55,6 +55,20 @@ def board_action(operation):
 
 
 operation = control_target(COMMAND_LINE_TARGETS)
+
+# Core lists an implicit "upload" only for platforms that register no Platform
+# targets of their own, and this one registers several. "upload" is an
+# ordinary alias defined by the upload backend, so list it by metadata alone,
+# ahead of the board operations.
+if "__PIO_TARGETS" not in env:
+    env["__PIO_TARGETS"] = {}
+env["__PIO_TARGETS"]["upload"] = dict(
+    name="upload",
+    title="Upload",
+    description="Flash the sketch, and the resident firmware when it differs",
+    group="Platform",
+)
+
 for name, description in TARGETS.items():
     env.AddPlatformTarget(
         name=name,

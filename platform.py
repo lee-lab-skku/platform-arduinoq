@@ -63,13 +63,11 @@ _LOADED_MODULES = {}
 # init, and running it again halts the target a second time -- which is where
 # the two consecutive "halted due to debug-request" came from.
 #
-# "$INIT_BREAK" is gone because it is evaluated here, while only the resident
-# firmware's symbols are loaded -- so its default of "tbreak main" resolves
-# against the resident firmware and stops the run to llext_bootstrap short.
-# Dropping it also means a project no longer has to blank debug_init_break; a
-# session stops in a defined place regardless, and another initial breakpoint
-# belongs in debug_extra_cmds, which is evaluated once the sketch's symbols
-# are in place.
+# "$INIT_BREAK" moves out because it would be evaluated here, while only the
+# resident firmware's symbols are loaded -- so its default of "tbreak main"
+# resolves against the resident firmware and stops the run to llext_bootstrap
+# short. The platform evaluates it after placing the sketch's symbols instead,
+# and only when the project names one; see configure_debug_session.
 DEBUG_INIT_CMDS = (
     "define pio_reset_halt_target",
     "monitor reset halt",
@@ -243,16 +241,22 @@ class ArduinoqPlatform(PlatformBase):
     def _board_upload_options(self, board_id):
         # Core's host paths do not apply SCons board_* overrides. Resolve
         # every host-facing option identically without mutating the manifest.
+        # Only values the board or project actually set are passed on;
+        # BoardControl.from_board_config applies the same defaults as the
+        # upload backend, so they are not repeated here.
         board = self.board_config(board_id)
-        defaults = {
-            "upload.openocd_dir": "",
-            "upload.router_serial_port": "/dev/ttyHS1",
-            "upload.router_transport": "uart",
-        }
-        options = {key: board.get(key, default) for key, default in defaults.items()}
-        if self.project_env:
-            for key, value in options.items():
-                options[key] = self.config.get("env:%s" % self.project_env, "board_" + key, value)
+        keys = (
+            "upload.openocd_dir",
+            "upload.router_serial_port",
+            "upload.router_transport",
+        )
+        options = {}
+        for key in keys:
+            value = board.get(key, None)
+            if self.project_env:
+                value = self.config.get("env:%s" % self.project_env, "board_" + key, value)
+            if value is not None:
+                options[key] = value
         return options
 
     def configure_debug_session(self, debug_config):
@@ -265,18 +269,28 @@ class ArduinoqPlatform(PlatformBase):
         resets do, instead of repeating the path a third time.
         """
         env_options = debug_config.env_options
-        # The project supplied its own server, or turned it off entirely.
-        if "debug_server" in env_options or debug_config.server is None:
-            return
+        # Only the server depends on who provides it. A project that supplies
+        # its own server, or turns it off to attach to one already running,
+        # still debugs the same relocatable sketch, so the load and symbol
+        # handling below apply to every session.
+        if "debug_server" not in env_options and debug_config.server is not None:
+            control = self.get_board_control(debug_config.board_config.id)
+            debug_config.server.update(
+                cwd=control.openocd_dir,
+                executable=control.openocd_binary,
+                arguments=control.server_arguments(
+                    gdb_port=self._gdb_port(debug_config)
+                ),
+            )
 
-        control = self.get_board_control(debug_config.board_config.id)
-        debug_config.server.update(
-            cwd=control.openocd_dir,
-            executable=control.openocd_binary,
-            arguments=control.server_arguments(
-                gdb_port=self._gdb_port(debug_config)
-            ),
-        )
+        if "debug_init_break" not in env_options:
+            # PlatformIO resumes the target after the init script whenever an
+            # initial breakpoint is set, and its default "tbreak main" is
+            # always set. Here that would run the sketch freely from the
+            # loader stop the init script ends at. Clearing the default keeps
+            # that stop; a project-defined breakpoint is still honoured, after
+            # the sketch's symbols are in place.
+            env_options["debug_init_break"] = ""
 
         self._add_debug_commands(debug_config)
 
@@ -286,7 +300,9 @@ class ArduinoqPlatform(PlatformBase):
             # session and then clears the load commands, so GDB never issues
             # one. That is the only workable arrangement here, because what
             # gets flashed is the packed image while the ELF GDB opens is a
-            # relocatable object the LLEXT loader places at run time.
+            # relocatable object the LLEXT loader places at run time. GDB's
+            # default "load" would write that object's zero-based sections
+            # over the start of flash, where the resident firmware lives.
             debug_config.load_cmds = ["preload"]
 
     @staticmethod
@@ -299,17 +315,23 @@ class ArduinoqPlatform(PlatformBase):
         that case would override the pipe and break the connection outright.
 
         A configured debug_port is exactly what turns that off, so the port is
-        only worth stating when the project asked for one. It is still checked
-        for being a bare number, since it may instead address a server this
-        platform does not start.
+        only worth stating when the project asked for one. GDB connects to it
+        as given, either a bare port or "host:port"; the server this platform
+        starts listens on its port number. Anything else, such as a device
+        path, is left to OpenOCD's default.
         """
         configured = debug_config.env_options.get(
             "debug_port"
         ) or debug_config.tool_settings.get("port")
         if not configured:
             return None
-        match = re.match(r"^:?(\d+)$", str(configured))
+        match = re.match(r"^(?:.*:)?(\d+)$", str(configured))
         return int(match.group(1)) if match else None
+
+    @staticmethod
+    def _gdb_quote(path):
+        """Quote a path as one argument for GDB commands that split on spaces."""
+        return '"%s"' % path.replace("\\", "\\\\").replace('"', '\\"')
 
     def _add_debug_commands(self, debug_config):
         """Prepare the session for placing the sketch's symbols.
@@ -337,8 +359,7 @@ class ArduinoqPlatform(PlatformBase):
             layout.resident_elf,
             os.path.join(toolchain_dir, "bin", "arm-zephyr-eabi-objcopy"),
         )
-        resident_symbols = debug_config._arduinoq_resident_symbols.path
-        resident_symbols = resident_symbols.replace("\\", "\\\\").replace('"', '\\"')
+        resident_symbols = self._gdb_quote(debug_config._arduinoq_resident_symbols.path)
 
         commands = [
             # A safety net only, now that the sketch's symbols stay loaded
@@ -349,7 +370,10 @@ class ArduinoqPlatform(PlatformBase):
             # to the tree it came from. Only the part of that tree the
             # framework package ships can be pointed at; Zephyr's own sources
             # are not on the board at all, so those frames stay source-less.
-            "set substitute-path ./ArduinoCore-zephyr %s" % layout.framework_dir,
+            "set substitute-path ./ArduinoCore-zephyr %s"
+            % self._gdb_quote(layout.framework_dir),
+            # Unquoted on purpose: "source" takes the rest of the line as the
+            # file name, spaces included, and would keep quotes as part of it.
             "source %s" % self._resolve_path(*LLEXT_GDB_SCRIPT),
             # Only the resident firmware for now: it is what runs until the
             # extension is started, and the sketch's own symbols would be at
@@ -357,7 +381,7 @@ class ArduinoqPlatform(PlatformBase):
             #
             # Absolute: this is fed to GDB verbatim, with no shell to expand
             # a "~" along the way.
-            'symbol-file "%s"' % resident_symbols,
+            'symbol-file %s' % resident_symbols,
             # Run to the extension and place its symbols here, while the init
             # script still has control. Everything an IDE does happens after
             # this file finishes, so by then the sketch's symbols are already
@@ -376,14 +400,37 @@ class ArduinoqPlatform(PlatformBase):
             "set $_aq_llext_bp = $bpnum",
             "continue",
             # $PROG_PATH is substituted by PlatformIO before GDB sees it.
-            "arduinoq_loaded_sketch_symbols $PROG_PATH",
-            # Left defined so the placement can be repeated by hand from any
-            # stop where the extension is in scope.
+            # Single quotes keep a path with spaces one argument; the helper
+            # passes it on through eval's double-quoted format string, where
+            # double quotes would end that string early.
+            "arduinoq_loaded_sketch_symbols '$PROG_PATH'",
+            # The same sequence, for after a reset: placement drops the
+            # resident firmware's symbols, which both the breakpoint and the
+            # "ext" argument need, so they are loaded again first. It
+            # resumes the target, so it is meant for the prompt or for the
+            # restart below, not for a breakpoint command list.
             "define arduinoq_sketch",
-            "arduinoq_loaded_sketch_symbols $PROG_PATH",
+            "set confirm off",
+            'symbol-file %s' % resident_symbols,
+            "set confirm on",
+            "break llext_bootstrap",
+            "set $_aq_llext_bp = $bpnum",
+            "continue",
+            "arduinoq_loaded_sketch_symbols '$PROG_PATH'",
+            "end",
+            # PlatformIO's own restart only resets and steps, which leaves
+            # the sketch's symbols at the previous run's addresses. Defining
+            # it here keeps PlatformIO from adding that default.
+            "define pio_restart_target",
+            "pio_reset_halt_target",
+            "arduinoq_sketch",
             "end",
             "echo \\n[arduinoq] stopped in the loader, with the sketch's "
             "symbols in place.\\n",
+            # The project's debug_init_break, now resolvable against the
+            # sketch; PlatformIO resumes to it once this script finishes.
+            # Empty unless the project set one.
+            "$INIT_BREAK",
         ]
         # PlatformIO runs project extra commands before tool extra commands.
         # Symbol placement belongs in initialization so both can use it.

@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Packaging now uses an explicit inclusion list, so untracked local files outside the platform's `boards/`, `builder/`, and `host/` directories can no longer enter the published package.
+- Debug sessions with a project-supplied or disabled `debug_server` now flash the sketch through the platform's upload, instead of letting GDB load the relocatable ELF over the resident firmware.
+- Debug sessions now stay stopped in the loader with the sketch's symbols placed, rather than resuming immediately because of PlatformIO's default `debug_init_break`.
+  A breakpoint set in `debug_init_break` now resolves against the sketch.
+- Restarting a debug session, and `arduinoq_sketch` after a reset, now place the sketch's symbols at the newly loaded addresses; `arduinoq_sketch_regions` also works after placement.
+- A `debug_port` given as `host:port` now sets the port of the OpenOCD server the platform starts.
+- When the unit-test connection cannot be opened, the test run now fails with the connection error and leaves the board running instead of halted.
+- `pio run -t compiledb` now records absolute compiler paths, and `COMPILATIONDB_INCLUDE_TOOLCHAIN` takes effect.
+- `upload` is now listed in `pio run --list-targets` and in IDE target metadata.
+- Failed OpenOCD runs no longer repeat already shown error lines in the diagnostics printed after the failure.
 
 ## [1.0.0-rc.5] &mdash; 2026-10-27
 
