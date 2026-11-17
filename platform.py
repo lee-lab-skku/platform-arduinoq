@@ -63,13 +63,11 @@ _LOADED_MODULES = {}
 # init, and running it again halts the target a second time -- which is where
 # the two consecutive "halted due to debug-request" came from.
 #
-# "$INIT_BREAK" is gone because it is evaluated here, while only the resident
-# firmware's symbols are loaded -- so its default of "tbreak main" resolves
-# against the resident firmware and stops the run to llext_bootstrap short.
-# Dropping it also means a project no longer has to blank debug_init_break; a
-# session stops in a defined place regardless, and another initial breakpoint
-# belongs in debug_extra_cmds, which is evaluated once the sketch's symbols
-# are in place.
+# "$INIT_BREAK" moves out because it would be evaluated here, while only the
+# resident firmware's symbols are loaded -- so its default of "tbreak main"
+# resolves against the resident firmware and stops the run to llext_bootstrap
+# short. The platform evaluates it after placing the sketch's symbols instead,
+# and only when the project names one; see configure_debug_session.
 DEBUG_INIT_CMDS = (
     "define pio_reset_halt_target",
     "monitor reset halt",
@@ -279,6 +277,15 @@ class ArduinoqPlatform(PlatformBase):
                 ),
             )
 
+        if "debug_init_break" not in env_options:
+            # PlatformIO resumes the target after the init script whenever an
+            # initial breakpoint is set, and its default "tbreak main" is
+            # always set. Here that would run the sketch freely from the
+            # loader stop the init script ends at. Clearing the default keeps
+            # that stop; a project-defined breakpoint is still honoured, after
+            # the sketch's symbols are in place.
+            env_options["debug_init_break"] = ""
+
         self._add_debug_commands(debug_config)
 
         if not env_options.get("debug_load_cmds"):
@@ -387,6 +394,10 @@ class ArduinoqPlatform(PlatformBase):
             "end",
             "echo \\n[arduinoq] stopped in the loader, with the sketch's "
             "symbols in place.\\n",
+            # The project's debug_init_break, now resolvable against the
+            # sketch; PlatformIO resumes to it once this script finishes.
+            # Empty unless the project set one.
+            "$INIT_BREAK",
         ]
         # PlatformIO runs project extra commands before tool extra commands.
         # Symbol placement belongs in initialization so both can use it.
