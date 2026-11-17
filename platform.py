@@ -309,16 +309,17 @@ class ArduinoqPlatform(PlatformBase):
         that case would override the pipe and break the connection outright.
 
         A configured debug_port is exactly what turns that off, so the port is
-        only worth stating when the project asked for one. It is still checked
-        for being a bare number, since it may instead address a server this
-        platform does not start.
+        only worth stating when the project asked for one. GDB connects to it
+        as given, either a bare port or "host:port"; the server this platform
+        starts listens on its port number. Anything else, such as a device
+        path, is left to OpenOCD's default.
         """
         configured = debug_config.env_options.get(
             "debug_port"
         ) or debug_config.tool_settings.get("port")
         if not configured:
             return None
-        match = re.match(r"^:?(\d+)$", str(configured))
+        match = re.match(r"^(?:.*:)?(\d+)$", str(configured))
         return int(match.group(1)) if match else None
 
     @staticmethod
