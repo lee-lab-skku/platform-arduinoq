@@ -241,16 +241,22 @@ class ArduinoqPlatform(PlatformBase):
     def _board_upload_options(self, board_id):
         # Core's host paths do not apply SCons board_* overrides. Resolve
         # every host-facing option identically without mutating the manifest.
+        # Only values the board or project actually set are passed on;
+        # BoardControl.from_board_config applies the same defaults as the
+        # upload backend, so they are not repeated here.
         board = self.board_config(board_id)
-        defaults = {
-            "upload.openocd_dir": "",
-            "upload.router_serial_port": "/dev/ttyHS1",
-            "upload.router_transport": "uart",
-        }
-        options = {key: board.get(key, default) for key, default in defaults.items()}
-        if self.project_env:
-            for key, value in options.items():
-                options[key] = self.config.get("env:%s" % self.project_env, "board_" + key, value)
+        keys = (
+            "upload.openocd_dir",
+            "upload.router_serial_port",
+            "upload.router_transport",
+        )
+        options = {}
+        for key in keys:
+            value = board.get(key, None)
+            if self.project_env:
+                value = self.config.get("env:%s" % self.project_env, "board_" + key, value)
+            if value is not None:
+                options[key] = value
         return options
 
     def configure_debug_session(self, debug_config):
